@@ -1,0 +1,24 @@
+//instagram
+
+.*\.?instagram\.com
+.*\.?cdninstagram\.com
+.*instagram.*\.fbcdn\.net
+
+//Torrent trackers
+.*\.?nnmclub\.to
+.*\.?rutracker\.org
+.*\.?rutor\.org
+.*\.?rutor\.info
+
+//Facebook
+.*\.?facebook\.com
+
+// Play google
+play\.google\.com
+
+//Badoo
+badoo\.com
+
+.*\.?googleusercontent\.com
+
+.*\.filmhd1080\.video
