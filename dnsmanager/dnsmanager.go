@@ -231,10 +231,14 @@ func (DNSManager *SDNSManager) GetDNSFromDNSServer(DNSRequest *dns.Msg) dns.Msg 
 		DNSServer = DNSManager.DNSServers[0] + ":53"
 	}
 	conn, errdial := net.Dial("udp4", DNSServer)
-	conn.SetDeadline(time.Now().Add(time.Duration(Config.DNSTimeout) * time.Second))
 	if errdial != nil {
-		fmt.Printf("Failed LocalDNS %s with error %s\n", DNSManager.GetDomain(DNSRequest), errdial.Error())
+		//fmt.Printf("Failed LocalDNS %s with error %s\n", DNSManager.GetDomain(DNSRequest), errdial.Error())
 		return *DNSRequest
+	}
+	err := conn.SetDeadline(time.Now().Add(time.Duration(Config.DNSTimeout) * time.Second))
+	if err != nil {
+		fmt.Println("Failed to set deadline:", err)
+		return dns.Msg{}
 	}
 
 	defer conn.Close()
