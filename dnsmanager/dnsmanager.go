@@ -232,33 +232,33 @@ func (DNSManager *SDNSManager) GetDNSFromDNSServer(DNSRequest *dns.Msg) dns.Msg 
 	conn.SetDeadline(time.Now().Add(time.Duration(Config.DNSTimeout) * time.Second))
 	if errdial != nil {
 		fmt.Printf("Failed LocalDNS %s with error %s\n", DNSManager.GetDomain(DNSRequest), errdial.Error())
-		return dns.Msg{}
+		return *DNSRequest
 	}
 
 	defer conn.Close()
 	buf, err := DNSRequest.Pack()
 	if err != nil {
 		fmt.Printf("Failed DNSRequest pack with error %s\n", errdial.Error())
-		return dns.Msg{}
+		return *DNSRequest
 	}
 	_, errw := conn.Write(buf)
 	if errw != nil {
 		fmt.Printf("Failed write to DNS with error: %s\n", errw.Error())
-		return dns.Msg{}
+		return *DNSRequest
 	}
 
 	ReadBuf := make([]byte, 1024)
 	n, err := conn.Read(ReadBuf)
 	if n <= 0 || err != nil {
-		fmt.Printf("Failed DNS (domain %s) with error: %s\n", DNSManager.GetDomain(DNSRequest), err.Error())
-		return dns.Msg{}
+		//fmt.Printf("Failed DNS (domain %s) with error: %s\n", DNSManager.GetDomain(DNSRequest), err.Error())
+		return *DNSRequest
 	}
 
 	DNSAnswer := dns.Msg{}
 	errpack := DNSAnswer.Unpack(ReadBuf)
 	if errpack != nil {
 		//fmt.Printf("Failed to parse DNS with error: %s\n", errpack.Error())
-		return dns.Msg{}
+		return *DNSRequest
 	}
 
 	return DNSAnswer
