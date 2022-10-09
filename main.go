@@ -5,13 +5,17 @@ import (
 	. "dnsrouting/dnsmanager"
 	. "dnsrouting/routemanager"
 	"dnsrouting/web"
+	"flag"
 )
 
 func main() {
-	Config.Init()
+	WorkDir := flag.String("workdir", "/etc/dnsrouting/", "path to files")
+	flag.Parse()
+
+	Config.Init(*WorkDir)
 	Route.Init()
 
-	DNSManager.Init()
+	DNSManager.Init(*WorkDir)
 	DNSManager.SetPort(Config.Port)
 	DNSManager.Start()
 

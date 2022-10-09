@@ -20,14 +20,17 @@ type SConfig struct {
 	DNSCacheRefresh int
 
 	conf *ini.File
+
+	path string
 }
 
 var Config SConfig
 
-func (config *SConfig) Init() {
-	conf, err := ini.Load("settings.ini")
+func (config *SConfig) Init(path string) {
+	config.path = path
+	conf, err := ini.Load(fmt.Sprintf("%ssettings.ini", config.path))
 	if err != nil {
-		fmt.Println("Fail load ini:", err.Error())
+		fmt.Printf("Fail load %ssettings.ini, err: %s\n", config.path, err.Error())
 		os.Exit(1)
 	}
 
@@ -50,7 +53,7 @@ func (config *SConfig) Save() {
 	k, _ = conf.GetKey("DNSServerList")
 	k.SetValue(config.DNSServerList)
 
-	err := config.conf.SaveTo("settings.ini")
+	err := config.conf.SaveTo(fmt.Sprintf("%ssettings.ini", config.path))
 	if err != nil {
 		fmt.Println("Fail save ini:", err.Error())
 	}

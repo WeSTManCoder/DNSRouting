@@ -26,11 +26,13 @@ type SDNSManager struct {
 	DNSList      []dns.Msg
 	DNSRegexList []string
 	mutex        sync.Mutex
+	WorkDir      string
 }
 
 var DNSManager SDNSManager
 
-func (DNSManager *SDNSManager) Init() {
+func (DNSManager *SDNSManager) Init(path string) {
+	DNSManager.WorkDir = path
 	DNSManager.LoadDNSRegexList()
 	DNSManager.InitDNSServers()
 }
@@ -121,9 +123,9 @@ func (DNSManager *SDNSManager) Handler(addr net.Addr, buf []byte) {
 }
 
 func (DNSManager *SDNSManager) LoadDNSRegexList() {
-	file, err := os.Open("services.txt")
+	file, err := os.Open(fmt.Sprintf("%sservices.txt", DNSManager.WorkDir))
 	if err != nil {
-		fmt.Printf("Fail load services.txt with error: %s\n", err.Error())
+		fmt.Printf("Fail load %sservices.txt with error: %s\n", DNSManager.WorkDir, err.Error())
 		os.Exit(1)
 	}
 
