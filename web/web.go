@@ -23,7 +23,7 @@ type SData struct {
 //go:embed favicon.ico
 var FaviconIcon []byte
 
-//go:embed index.html
+//go:embed *.html
 var index embed.FS
 
 func Start() {

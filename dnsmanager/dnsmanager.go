@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"context"
 	. "dnsrouting/configmanager"
-	. "dnsrouting/vpnmanager"
+	. "dnsrouting/routemanager"
 	"fmt"
 	"io"
 	"math/rand"
@@ -194,7 +194,7 @@ func (DNSManager *SDNSManager) AddToRoute(DNSRecord *dns.Msg) {
 		}
 	}
 	if len(IPList) > 0 {
-		VPN.AddToRoute(IPList)
+		Route.AddToRoute(IPList)
 	}
 }
 

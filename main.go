@@ -3,13 +3,13 @@ package main
 import (
 	. "dnsrouting/configmanager"
 	. "dnsrouting/dnsmanager"
-	. "dnsrouting/vpnmanager"
+	. "dnsrouting/routemanager"
 	"dnsrouting/web"
 )
 
 func main() {
 	Config.Init()
-	go VPN.Init("/tmp/vpnconfig.ovpn")
+	Route.Init()
 
 	DNSManager.Init()
 	DNSManager.SetPort(Config.Port)
