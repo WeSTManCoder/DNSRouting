@@ -3,6 +3,7 @@ package web
 import (
 	. "dnsrouting/configmanager"
 	. "dnsrouting/dnsmanager"
+	"embed"
 	"fmt"
 	"html/template"
 	"io/ioutil"
@@ -19,6 +20,12 @@ type SData struct {
 	DNSHTTPServer string
 }
 
+//go:embed favicon.ico
+var FaviconIcon []byte
+
+//go:embed index.html
+var index embed.FS
+
 func Start() {
 	http.HandleFunc("/", HTTPHandler)
 	http.HandleFunc("/favicon.ico", HTTPFaviconHandler)
@@ -32,13 +39,7 @@ func Start() {
 }
 
 func HTTPFaviconHandler(w http.ResponseWriter, r *http.Request) {
-	file, err := os.ReadFile("favicon.ico")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Write(file)
+	w.Write(FaviconIcon)
 }
 
 func HTTPSaveHandler(w http.ResponseWriter, r *http.Request) {
@@ -89,9 +90,9 @@ func HTTPSaveHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func HTTPHandler(w http.ResponseWriter, r *http.Request) {
-	template, err := template.ParseFiles("index.html")
+	template, err := template.ParseFS(index, "index.html")
 	if err != nil {
-		http.Error(w, "500 internal error", 500)
+		http.Error(w, err.Error(), 500)
 		return
 	}
 
