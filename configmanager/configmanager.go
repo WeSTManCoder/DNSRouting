@@ -21,16 +21,16 @@ type SConfig struct {
 
 	conf *ini.File
 
-	path string
+	WorkDir string
 }
 
 var Config SConfig
 
 func (config *SConfig) Init(path string) {
-	config.path = path
-	conf, err := ini.Load(fmt.Sprintf("%ssettings.ini", config.path))
+	config.WorkDir = path
+	conf, err := ini.Load(fmt.Sprintf("%ssettings.ini", config.WorkDir))
 	if err != nil {
-		fmt.Printf("Fail load %ssettings.ini, err: %s\n", config.path, err.Error())
+		fmt.Printf("Fail load %ssettings.ini, err: %s\n", config.WorkDir, err.Error())
 		os.Exit(1)
 	}
 
@@ -53,7 +53,7 @@ func (config *SConfig) Save() {
 	k, _ = conf.GetKey("DNSServerList")
 	k.SetValue(config.DNSServerList)
 
-	err := config.conf.SaveTo(fmt.Sprintf("%ssettings.ini", config.path))
+	err := config.conf.SaveTo(fmt.Sprintf("%ssettings.ini", config.WorkDir))
 	if err != nil {
 		fmt.Println("Fail save ini:", err.Error())
 	}

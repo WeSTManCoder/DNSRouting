@@ -56,8 +56,6 @@ func HTTPSaveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Println(string(body))
-
 	HasConfigChange := false
 	jsonparser.ArrayEach(body, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 		DoHServer, err := jsonparser.GetString(value, "DoHServer")
@@ -75,7 +73,7 @@ func HTTPSaveHandler(w http.ResponseWriter, r *http.Request) {
 
 		DNSRegexList, err := jsonparser.GetString(value, "DNSRegexList")
 		if err == nil {
-			err := os.WriteFile(fmt.Sprintf("%sservices.txt", DNSManager.WorkDir), []byte(fmt.Sprintf("%s\n", DNSRegexList)), 0644)
+			err := os.WriteFile(fmt.Sprintf("%sservices.txt", Config.WorkDir), []byte(fmt.Sprintf("%s\n", DNSRegexList)), 0644)
 			if err != nil {
 				fmt.Println("Fail save DNS Regex List with error:", err.Error())
 				w.Write([]byte("danger:" + err.Error()))
@@ -111,7 +109,7 @@ func HTTPHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetServiceList() string {
-	content, err := os.ReadFile(fmt.Sprintf("%sservices.txt", DNSManager.WorkDir))
+	content, err := os.ReadFile(fmt.Sprintf("%sservices.txt", Config.WorkDir))
 	if err != nil {
 		return ""
 	}

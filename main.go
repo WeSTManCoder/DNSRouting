@@ -15,7 +15,7 @@ func main() {
 	Config.Init(*WorkDir)
 	Route.Init()
 
-	DNSManager.Init(*WorkDir)
+	DNSManager.Init()
 	DNSManager.SetPort(Config.Port)
 	DNSManager.Start()
 
