@@ -19,6 +19,15 @@ type SConfig struct {
 	//Время обновления DNS кеша
 	DNSCacheRefresh int
 
+	//Есть ли adguard?
+	AdGuard bool
+
+	//IP адрес ADGuard
+	AdGuardUrl string
+
+	//Секретный код Adguard
+	AdGuardSecret string
+
 	conf *ini.File
 
 	WorkDir string
@@ -46,14 +55,54 @@ func (config *SConfig) Init(path string) {
 }
 
 func (config *SConfig) Save() {
-	conf, _ := config.conf.GetSection("")
+	conf, err := config.conf.GetSection("")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
-	k, _ := conf.GetKey("DoHServer")
+	k, err := conf.GetKey("DoHServer")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	k.SetValue(config.DoHServer)
-	k, _ = conf.GetKey("DNSServerList")
+
+	k, err = conf.GetKey("DNSServerList")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	k.SetValue(config.DNSServerList)
 
-	err := config.conf.SaveTo(fmt.Sprintf("%ssettings.ini", config.WorkDir))
+	k, err = conf.GetKey("AdGuardUrl")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	k.SetValue(Config.AdGuardUrl)
+
+	k, err = conf.GetKey("AdGuardSecret")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	k.SetValue(Config.AdGuardSecret)
+
+	k, err = conf.GetKey("AdGuard")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	var AdGuard string
+	if Config.AdGuard {
+		AdGuard = "true"
+	} else {
+		AdGuard = "false"
+	}
+	k.SetValue(AdGuard)
+
+	err = config.conf.SaveTo(fmt.Sprintf("%ssettings.ini", config.WorkDir))
 	if err != nil {
 		fmt.Println("Fail save ini:", err.Error())
 	}

@@ -32,9 +32,33 @@
 		</style>
 		
 		<script>
-			var DoHServer, DNSServers, RegexList;
+			var DoHServer, DNSServers, RegexList, AdGuard, AdGuardUrl, AdGuardSecret;
 			var AlertViewList = new Array();
 			var AlertIcon = { "success": "#check-circle-fill", "primary":	"#info-fill", "danger":	"#exclamation-triangle-fill" };
+
+			window.onload = function() {
+				{{if .AdGuard}}
+					document.getElementById("AdGuardSettings").style.display = "block";
+					document.getElementById("AdGuard").checked = true;
+				{{end}}
+				
+				DoHServer = document.getElementById("dohserver").value.trim();
+				DNSServers = document.getElementById("dnsservers").value.trim();
+				RegexList = document.getElementById("dnsregexlist").value.trim();
+				AdGuard = document.getElementById("AdGuard").checked;
+				AdGuardUrl = document.getElementById("AdGuardUrl").value.trim();
+				AdGuardSecret = document.getElementById("AdGuardSecret").value.trim();
+			};
+
+			function OnAdGuard(obj) {
+				if (!obj.checked) {
+					document.getElementById("AdGuardSettings").style.display = "none";
+
+					return
+				}
+
+				document.getElementById("AdGuardSettings").style.display = "block";
+			}
 			
 			function PrintAlerts() {
 				let AlertContainer = document.getElementById("alertcontainer");
@@ -52,21 +76,22 @@
 				
 				PrintAlerts();
 			}			
-			window.onload = function() {
-				DoHServer = document.getElementById("dohserver").value.trim();
-				DNSServers = document.getElementById("dnsservers").value.trim();
-				RegexList = document.getElementById("dnsregexlist").value.trim();
-			};
 			function OnSave() {
 				let DoHServerSave = document.getElementById("dohserver").value.trim();
 				let DNSServersSave = document.getElementById("dnsservers").value.trim();
 				let RegexListSave = document.getElementById("dnsregexlist").value.trim();
+				let AdGuardSave = document.getElementById("AdGuard").checked;
+				let AdGuardUrlSave = document.getElementById("AdGuardUrl").value.trim();
+				let AdGuardSecretSave = document.getElementById("AdGuardSecret").value.trim();
 				
 				var JSONData = [];
 				
 				if (DoHServer != DoHServerSave) JSONData.push({"DoHServer": DoHServerSave});
 				if (DNSServers != DNSServersSave) JSONData.push({"DNSServers": DNSServersSave});
 				if (RegexList != RegexListSave) JSONData.push({"DNSRegexList": RegexListSave});
+				if (AdGuard != AdGuardSave) JSONData.push({"AdGuard": AdGuardSave});
+				if (AdGuardUrl != AdGuardUrlSave) JSONData.push({"AdGuardUrl": AdGuardUrlSave});
+				if (AdGuardSecret != AdGuardSecretSave) JSONData.push({"AdGuardSecret": AdGuardSecretSave});
 					
 				if (Object.keys(JSONData).length > 0) {
 					$.ajax({
@@ -75,17 +100,24 @@
 						data: JSON.stringify(JSONData),
 						contentType: "application/json; charset=utf-8",
 						success: function(data) {
+							if (data != "OK") {
+								AddAlert("danger", data);
+								return;
+							}
+
 							AddAlert("success", "Успешно!");
 							DoHServer = DoHServerSave;
 							DNSServers = DNSServersSave;
 							RegexList = RegexListSave;
+							AdGuard = AdGuardSave;
+							AdGuardUrl = AdGuardUrlSave;
+							AdGuardSecret = AdGuardSecretSave;
 						},
 						failure: function(Error) {
 							AddAlert("danger", "Ошибка: " + Error);
 						}
 					});
 					
-					console.log(JSONData);
 					AddAlert("primary", "Запрос был отправлен!");
 					
 					return;
@@ -130,10 +162,29 @@
 		<div class="container px-4 py-5" id="featured-1">
 			<div class="row g-4 row-cols-1 row-cols-lg-1" style="background-color: white; border-radius: 8px; border: 1px solid #E0E5EC; padding-bottom: 2%;">	
 				<h2 class="pb-2 border-bottom">Настройки</h2>
+
+				<div class="custom-control custom-checkbox">
+					<input type="checkbox" class="custom-control-input" id="AdGuard" onclick="OnAdGuard(this)">
+					<label class="custom-control-label" for="customCheck1">Включить AdGuardHome API (сброс cache)</label>
+				</div>
+				<div class="form-group" id="AdGuardSettings" style="display: none">
+					<div class="row">
+						<div class="col">
+							<label for="exampleFormControlTextarea1">AdGuardHome API:</label>
+						  	<input type="text" class="form-control" placeholder="AdGuardHome API" id="AdGuardUrl" value="{{.AdGuardUrl}}">
+						</div>
+						<div class="col">
+							<label for="exampleFormControlTextarea1">AdGuardHome login:password:</label>
+						 	<input type="text" class="form-control" placeholder="AdGuardHome Secret" id="AdGuardSecret" value="{{.AdGuardSecret}}">
+						</div>
+					</div>
+				</div>
+
 				<div class="form-group">
 					<label for="exampleFormControlTextarea1">DNS Over HTTPS (DoH) сервер:</label>
 					<textarea class="form-control" id="dohserver" rows="1">{{.DNSHTTPServer}}</textarea>
-				</div>			
+				</div>
+
 				<div class="form-group">
 					<label for="exampleFormControlTextarea1">Список DNS серверов (udp):</label>
 					<textarea class="form-control" id="dnsservers" rows="3">{{.DNSServers}}</textarea>
