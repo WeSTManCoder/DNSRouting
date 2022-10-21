@@ -5,6 +5,8 @@ import (
 	"net"
 	"os"
 
+	. "dnsrouting/configmanager"
+
 	netlink "github.com/vishvananda/netlink"
 	nl "github.com/vishvananda/netlink/nl"
 )
@@ -27,7 +29,7 @@ func (r *RouteInterface) Init() {
 
 func (r *RouteInterface) GetIPRouteList() ([]string, error) {
 	var IPList []string
-	tun0, err := r.NLHandle.LinkByName("tun0")
+	tun0, err := r.NLHandle.LinkByName(Config.VPNInterface)
 	if err != nil {
 		fmt.Printf("No found tun0 with error: %s", err.Error())
 		return IPList, err

@@ -32,22 +32,21 @@
 		</style>
 		
 		<script>
-			var DoHServer, DNSServers, RegexList, AdGuard, AdGuardUrl, AdGuardSecret;
+			var DoHServer, DNSServers, RegexList, AdGuard, AdGuardUrl, AdGuardSecret, Port, DNSTimeout, DNSCacheRefresh, VPNInterface;
 			var AlertViewList = new Array();
 			var AlertIcon = { "success": "#check-circle-fill", "primary":	"#info-fill", "danger":	"#exclamation-triangle-fill" };
 
 			window.onload = function() {
-				{{if .AdGuard}}
-					document.getElementById("AdGuardSettings").style.display = "block";
-					document.getElementById("AdGuard").checked = true;
-				{{end}}
-				
 				DoHServer = document.getElementById("dohserver").value.trim();
 				DNSServers = document.getElementById("dnsservers").value.trim();
 				RegexList = document.getElementById("dnsregexlist").value.trim();
 				AdGuard = document.getElementById("AdGuard").checked;
 				AdGuardUrl = document.getElementById("AdGuardUrl").value.trim();
 				AdGuardSecret = document.getElementById("AdGuardSecret").value.trim();
+				Port = document.getElementById("Port").value.trim();
+				DNSTimeout = document.getElementById("DNSTimeout").value.trim();
+				DNSCacheRefresh = document.getElementById("DNSCacheRefresh").value.trim();
+				VPNInterface = document.getElementById("VPNInterface").value.trim();
 			};
 
 			function OnAdGuard(obj) {
@@ -83,6 +82,10 @@
 				let AdGuardSave = document.getElementById("AdGuard").checked;
 				let AdGuardUrlSave = document.getElementById("AdGuardUrl").value.trim();
 				let AdGuardSecretSave = document.getElementById("AdGuardSecret").value.trim();
+				let PortSave = document.getElementById("Port").value.trim();
+				let DNSTimeoutSave = document.getElementById("DNSTimeout").value.trim();
+				let DNSCacheRefreshSave = document.getElementById("DNSCacheRefresh").value.trim();
+				let VPNInterfaceSave = document.getElementById("VPNInterface").value.trim();
 				
 				var JSONData = [];
 				
@@ -92,6 +95,10 @@
 				if (AdGuard != AdGuardSave) JSONData.push({"AdGuard": AdGuardSave});
 				if (AdGuardUrl != AdGuardUrlSave) JSONData.push({"AdGuardUrl": AdGuardUrlSave});
 				if (AdGuardSecret != AdGuardSecretSave) JSONData.push({"AdGuardSecret": AdGuardSecretSave});
+				if (Port != PortSave) JSONData.push({"Port": PortSave});
+				if (DNSTimeout != DNSTimeoutSave) JSONData.push({"DNSTimeout": DNSTimeoutSave});
+				if (DNSCacheRefresh != DNSCacheRefreshSave) JSONData.push({"DNSCacheRefresh": DNSCacheRefreshSave});
+				if (VPNInterface != VPNInterfaceSave) JSONData.push({"VPNInterface": VPNInterfaceSave});
 					
 				if (Object.keys(JSONData).length > 0) {
 					$.ajax({
@@ -112,6 +119,7 @@
 							AdGuard = AdGuardSave;
 							AdGuardUrl = AdGuardUrlSave;
 							AdGuardSecret = AdGuardSecretSave;
+							VPNInterface = VPNInterfaceSave;
 						},
 						failure: function(Error) {
 							AddAlert("danger", "Ошибка: " + Error);
@@ -141,6 +149,12 @@
 				PrintAlerts();
 				setTimeout(OnDestroy, 5000, id);
 			}
+
+			function ToggleAdGuard(id) {
+				obj = document.getElementById(id)
+				obj.checked = !obj.checked
+				OnAdGuard(obj)
+			}
 		</script>
 	</head>
 	
@@ -163,22 +177,22 @@
 			<div class="row g-4 row-cols-1 row-cols-lg-1" style="background-color: white; border-radius: 8px; border: 1px solid #E0E5EC; padding-bottom: 2%;">	
 				<h2 class="pb-2 border-bottom">Настройки</h2>
 
-				<div class="custom-control custom-checkbox">
-					<input type="checkbox" class="custom-control-input" id="AdGuard" onclick="OnAdGuard(this)">
-					<label class="custom-control-label" for="customCheck1">Включить AdGuardHome API (сброс cache)</label>
-				</div>
-				<div class="form-group" id="AdGuardSettings" style="display: none">
-					<div class="row">
-						<div class="col">
-							<label for="exampleFormControlTextarea1">AdGuardHome API:</label>
-						  	<input type="text" class="form-control" placeholder="AdGuardHome API" id="AdGuardUrl" value="{{.AdGuardUrl}}">
-						</div>
-						<div class="col">
-							<label for="exampleFormControlTextarea1">AdGuardHome login:password:</label>
-						 	<input type="text" class="form-control" placeholder="AdGuardHome Secret" id="AdGuardSecret" value="{{.AdGuardSecret}}">
-						</div>
-					</div>
-				</div>
+				<table class="table table-borderless">
+					<tbody>
+						<tr>
+							<td class="align-middle">Порт сервиса:</td>
+							<td class="align-middle"><input type="text" class="form-control" placeholder="54" id="Port" value="{{.Port}}"></td>
+							<td class="align-middle">Название сетевого интерфейса VPN (tun0 по умолчанию):</td>
+							<td class="align-middle"><input type="text" class="form-control" placeholder="tun0" id="VPNInterface" value="{{.VPNInterface}}"></td>
+						</tr>
+						<tr>
+							<td class="align-middle">Макс. время ответа от DNS (сек.):</td>
+							<td class="align-middle"><input type="text" class="form-control" placeholder="5" id="DNSTimeout" value="{{.DNSTimeout}}"></td>
+							<td class="align-middle">Время обновления локального кэша (сек.):</td>
+							<td class="align-middle"><input type="text" class="form-control" placeholder="43200" id="DNSCacheRefresh" value="{{.DNSCacheRefresh}}"></td>
+						</tr>
+					</tbody>
+				</table>
 
 				<div class="form-group">
 					<label for="exampleFormControlTextarea1">DNS Over HTTPS (DoH) сервер:</label>
@@ -194,10 +208,29 @@
 					<label for="exampleFormControlTextarea1">Список доменных имен для роутинг:</label>
 					<textarea class="form-control" id="dnsregexlist" rows="12">{{.DNSRegexList}}</textarea>
 				</div>
-				
+
+				<div class="form-group">
+					<div class="custom-control custom-checkbox">
+						<input type="checkbox" class="custom-control-input" id="AdGuard" onclick="OnAdGuard(this)" {{ if .AdGuard }} checked {{ end }}>
+						<label class="custom-control-label" for="customCheck1" onclick="ToggleAdGuard('AdGuard')">Включить AdGuardHome API (сброс кэша)</label>
+					</div>
+
+					<table class="table table-borderless" id="AdGuardSettings" {{ if not .AdGuard }} style="display: none" {{ end }}>
+						<tbody>
+							<tr>
+								<td class="align-middle">AdGuardHome Url:</td>
+								<td class="align-middle"><input type="text" class="form-control" placeholder="http://192.168.1.1:3000" id="AdGuardUrl" value="{{.AdGuardUrl}}"></td>
+								<td class="align-middle">AdGuardHome [логин:пароль]:</td>
+								<td class="align-middle"><input type="text" class="form-control" placeholder="login:password" id="AdGuardSecret" value="{{.AdGuardSecret}}"></td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+
 				<div style="display: flex; justify-content: center;">
 					<button type="button" class="btn btn-primary btn-standard mr-2" onclick="OnSave()">Сохранить</button>
 				</div>
+
 			</div>
 		</div>
   </div>

@@ -3,6 +3,7 @@ package configmanager
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/go-ini/ini"
 )
@@ -27,6 +28,8 @@ type SConfig struct {
 
 	//Секретный код Adguard
 	AdGuardSecret string
+
+	VPNInterface string
 
 	conf *ini.File
 
@@ -55,55 +58,33 @@ func (config *SConfig) Init(path string) {
 }
 
 func (config *SConfig) Save() {
+	config.SetConfKey("Port", strconv.Itoa(Config.Port))
+	config.SetConfKey("DoHServer", config.DoHServer)
+	config.SetConfKey("DNSServerList", config.DNSServerList)
+	config.SetConfKey("DNSTimeout", strconv.Itoa(config.DNSTimeout))
+	config.SetConfKey("DNSCacheRefresh", strconv.Itoa(config.DNSCacheRefresh))
+	config.SetConfKey("AdGuard", strconv.FormatBool(config.AdGuard))
+	config.SetConfKey("AdGuardUrl", config.AdGuardUrl)
+	config.SetConfKey("AdGuardSecret", config.AdGuardSecret)
+	config.SetConfKey("VPNInterface", config.VPNInterface)
+
+	err := config.conf.SaveTo(fmt.Sprintf("%ssettings.ini", config.WorkDir))
+	if err != nil {
+		fmt.Println("Fail save ini:", err.Error())
+	}
+}
+
+func (config *SConfig) SetConfKey(key string, value string) {
 	conf, err := config.conf.GetSection("")
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	k, err := conf.GetKey("DoHServer")
+	k, err := conf.GetKey(key)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	k.SetValue(config.DoHServer)
-
-	k, err = conf.GetKey("DNSServerList")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	k.SetValue(config.DNSServerList)
-
-	k, err = conf.GetKey("AdGuardUrl")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	k.SetValue(Config.AdGuardUrl)
-
-	k, err = conf.GetKey("AdGuardSecret")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	k.SetValue(Config.AdGuardSecret)
-
-	k, err = conf.GetKey("AdGuard")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	var AdGuard string
-	if Config.AdGuard {
-		AdGuard = "true"
-	} else {
-		AdGuard = "false"
-	}
-	k.SetValue(AdGuard)
-
-	err = config.conf.SaveTo(fmt.Sprintf("%ssettings.ini", config.WorkDir))
-	if err != nil {
-		fmt.Println("Fail save ini:", err.Error())
-	}
+	k.SetValue(value)
 }

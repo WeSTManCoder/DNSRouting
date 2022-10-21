@@ -11,18 +11,23 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/buger/jsonparser"
 )
 
 type SData struct {
-	DNSServers    string
-	DNSRegexList  string
-	DNSHTTPServer string
-	AdGuard       bool
-	AdGuardUrl    string
-	AdGuardSecret string
+	DNSServers      string
+	DNSRegexList    string
+	DNSHTTPServer   string
+	AdGuard         bool
+	AdGuardUrl      string
+	AdGuardSecret   string
+	Port            string
+	DNSTimeout      string
+	DNSCacheRefresh string
+	VPNInterface    string
 }
 
 //go:embed favicon.ico
@@ -63,6 +68,33 @@ func HTTPSaveHandler(w http.ResponseWriter, r *http.Request) {
 
 	HasConfigChange := false
 	jsonparser.ArrayEach(body, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+		Port, err := jsonparser.GetString(value, "Port")
+		if err == nil {
+			iPort, errint := strconv.Atoi(Port)
+			if errint == nil {
+				HasConfigChange = true
+				Config.Port = iPort
+			}
+		}
+
+		DNSCacheRefresh, err := jsonparser.GetString(value, "DNSCacheRefresh")
+		if err == nil {
+			iDNSCacheRefresh, errint := strconv.Atoi(DNSCacheRefresh)
+			if errint == nil {
+				HasConfigChange = true
+				Config.DNSCacheRefresh = iDNSCacheRefresh
+			}
+		}
+
+		DNSTimeout, err := jsonparser.GetString(value, "DNSTimeout")
+		if err == nil {
+			iTimeout, errint := strconv.Atoi(DNSTimeout)
+			if errint == nil {
+				HasConfigChange = true
+				Config.DNSTimeout = iTimeout
+			}
+		}
+
 		AdGuard, err := jsonparser.GetBoolean(value, "AdGuard")
 		if err == nil {
 			HasConfigChange = true
@@ -92,6 +124,12 @@ func HTTPSaveHandler(w http.ResponseWriter, r *http.Request) {
 			HasConfigChange = true
 			Config.DNSServerList = strings.ReplaceAll(DNSServers, "\n", ";")
 			DNSManager.InitDNSServers()
+		}
+
+		VPNInterface, err := jsonparser.GetString(value, "VPNInterface")
+		if err == nil {
+			HasConfigChange = true
+			Config.VPNInterface = VPNInterface
 		}
 
 		DNSRegexList, err := jsonparser.GetString(value, "DNSRegexList")
@@ -133,12 +171,17 @@ func HTTPHandler(w http.ResponseWriter, r *http.Request) {
 	for _, DNSServer := range DNSManager.DNSServers {
 		data.DNSServers = fmt.Sprintf("%s\n%s", data.DNSServers, DNSServer)
 	}
-	data.DNSRegexList = GetServiceList()
+
+	data.Port = strconv.Itoa(Config.Port)
 	data.DNSHTTPServer = Config.DoHServer
+	data.DNSRegexList = GetServiceList()
+	data.DNSTimeout = strconv.Itoa(Config.DNSTimeout)
+	data.DNSCacheRefresh = strconv.Itoa(Config.DNSCacheRefresh)
 	data.AdGuard = Config.AdGuard
 	data.AdGuardUrl = Config.AdGuardUrl
 	decode, _ := base64.StdEncoding.DecodeString(Config.AdGuardSecret)
 	data.AdGuardSecret = string(decode)
+	data.VPNInterface = Config.VPNInterface
 
 	err = template.Execute(w, data)
 	if err != nil {
