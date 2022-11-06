@@ -48,6 +48,7 @@ func (adguard *SADGaurdHome) SetCacheSize(size int64) error {
 		return err
 	}
 
+	request.Header.Add("Content-Type", "application/json")
 	request.Header.Add("Authorization", fmt.Sprintf("Basic %s", Config.AdGuardSecret))
 	response, err := client.Do(request)
 	if err != nil {
