@@ -138,6 +138,15 @@ func (DNSManager *SDNSManager) LoadDNSRegexList() {
 			continue
 		}
 
+		matched, err := regexp.MatchString("\\d+\\.\\d+\\.\\d+\\.\\d+", Line)
+		if err != nil {
+			fmt.Println("Error:", err)
+		}
+
+		if matched {
+			continue
+		}
+
 		DNSManager.DNSRegexList = append(DNSManager.DNSRegexList, Line)
 		fmt.Println("Regex:", Line)
 	}
