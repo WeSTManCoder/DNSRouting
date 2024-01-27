@@ -1,9 +1,13 @@
 package routemanager
 
 import (
+	"bufio"
 	"fmt"
 	"net"
 	"os"
+	"regexp"
+	"strings"
+	"time"
 
 	. "dnsrouting/configmanager"
 
@@ -18,6 +22,47 @@ type RouteInterface struct {
 
 var Route RouteInterface
 
+func (r *RouteInterface) RouteListUpdate() {
+	for true {
+		file, err := os.Open(fmt.Sprintf("%sservices.txt", Config.WorkDir))
+		if err != nil {
+			fmt.Printf("Fail load %sservices.txt with error: %s\n", Config.WorkDir, err.Error())
+			os.Exit(1)
+		}
+
+		defer file.Close()
+		scanner := bufio.NewScanner(file)
+
+		var IPFileList []string
+
+		for scanner.Scan() {
+			Line := scanner.Text()
+			if len(Line) <= 2 || strings.Contains(Line, "//") {
+				continue
+			}
+
+			matched, err := regexp.MatchString("\\d+\\.\\d+\\.\\d+\\.\\d+", Line)
+			if err != nil {
+				fmt.Println("Error:", err)
+			}
+
+			if matched {
+				IPFileList = append(IPFileList, Line)
+			}
+
+		}
+
+		if err := scanner.Err(); err != nil {
+			fmt.Println("Scanner with error:", err)
+		}
+
+		r.AddToRoute(IPFileList)
+
+		time.Sleep(60 * time.Second)
+	}
+
+}
+
 func (r *RouteInterface) Init() {
 	NetLinkHandle, err := netlink.NewHandle(nl.FAMILY_V4)
 	if err != nil {
@@ -25,6 +70,8 @@ func (r *RouteInterface) Init() {
 		os.Exit(1)
 	}
 	r.NLHandle = NetLinkHandle
+
+	go r.RouteListUpdate()
 }
 
 func (r *RouteInterface) GetIPRouteList() ([]string, error) {
