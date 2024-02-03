@@ -30,7 +30,6 @@ func (r *RouteInterface) RouteListUpdate() {
 			os.Exit(1)
 		}
 
-		defer file.Close()
 		scanner := bufio.NewScanner(file)
 
 		var IPFileList []string
@@ -56,11 +55,12 @@ func (r *RouteInterface) RouteListUpdate() {
 			fmt.Println("Scanner with error:", err)
 		}
 
+		file.Close()
+
 		r.AddToRoute(IPFileList)
 
 		time.Sleep(60 * time.Second)
 	}
-
 }
 
 func (r *RouteInterface) Init() {
