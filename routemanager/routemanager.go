@@ -23,6 +23,8 @@ type RouteInterface struct {
 var Route RouteInterface
 
 func (r *RouteInterface) RouteListUpdate() {
+	time.Sleep(60 * time.Second)
+
 	for true {
 		file, err := os.Open(fmt.Sprintf("%sservices.txt", Config.WorkDir))
 		if err != nil {
@@ -40,7 +42,7 @@ func (r *RouteInterface) RouteListUpdate() {
 				continue
 			}
 
-			matched, err := regexp.MatchString("\\d+\\.\\d+\\.\\d+\\.\\d+", Line)
+			matched, err := regexp.MatchString("\\d+\\.\\d+\\.\\d+\\.\\d+(\\/\\d+)?", Line)
 			if err != nil {
 				fmt.Println("Error:", err)
 			}
@@ -74,40 +76,64 @@ func (r *RouteInterface) Init() {
 	go r.RouteListUpdate()
 }
 
-func (r *RouteInterface) GetIPRouteList() ([]string, error) {
-	var IPList []string
-	tun0, err := r.NLHandle.LinkByName(Config.VPNInterface)
+// Измененная функция для возврата списка подсетей (*net.IPNet)
+func (r *RouteInterface) GetIPRouteList() ([]*net.IPNet, error) {
+	var IPList []*net.IPNet
+	VPNInterface, err := r.NLHandle.LinkByName(Config.VPNInterface)
 	if err != nil {
-		fmt.Printf("No found tun0 with error: %s", err.Error())
+		fmt.Printf("No found %s with error: %s\n", Config.VPNInterface, err.Error())
 		return IPList, err
 	}
-	r.DevLink = tun0
-	NLRouteList, err := r.NLHandle.RouteList(tun0, nl.FAMILY_V4)
+	r.DevLink = VPNInterface
+
+	NLRouteList, err := r.NLHandle.RouteList(VPNInterface, nl.FAMILY_V4)
 	if err != nil {
 		fmt.Println(err)
 		return IPList, err
 	}
 
 	for i := range NLRouteList {
-		IPList = append(IPList, NLRouteList[i].Dst.IP.String())
+		// Добавляем подсети в IPList
+		if NLRouteList[i].Dst != nil {
+			IPList = append(IPList, NLRouteList[i].Dst)
+		}
 	}
 
 	return IPList, nil
 }
 
+// Функция добавления IP-адресов в маршрут
 func (r *RouteInterface) AddToRoute(IPList []string) {
-	IPListInRoute, err := Route.GetIPRouteList()
+	IPListInRoute, err := r.GetIPRouteList() // Получаем список подсетей
 	if err != nil {
-		fmt.Println("Fail add ip to route:", err.Error())
+		fmt.Println("Fail add IP to route:", err.Error())
 		return
 	}
 
 	for _, ip := range IPList {
-		HasExist := IPInList(ip, IPListInRoute)
+		// Если маска отсутствует, добавляем маску /32
+		if !strings.Contains(ip, "/") {
+			ip += "/32"
+		}
+
+		// Парсим IP и CIDR
+		parsedIP, _, err := net.ParseCIDR(ip)
+		if err != nil {
+			fmt.Println("Failed to parse IP:", err.Error())
+			continue
+		}
+
+		// Проверяем, находится ли IP в одной из подсетей
+		HasExist := IPInList(parsedIP, IPListInRoute)
 
 		if !HasExist {
-			_, ipnet, _ := net.ParseCIDR(ip + "/32")
-			NLRoute := &netlink.Route{LinkIndex: r.DevLink.Attrs().Index, Dst: ipnet, Scope: netlink.SCOPE_LINK, Table: 254}
+			_, ipnet, _ := net.ParseCIDR(ip)
+			NLRoute := &netlink.Route{
+				LinkIndex: r.DevLink.Attrs().Index,
+				Dst:       ipnet,
+				Scope:     netlink.SCOPE_LINK,
+				Table:     254,
+			}
 			err := r.NLHandle.RouteAdd(NLRoute)
 			if err != nil {
 				fmt.Println("Fail add route:", err.Error())
@@ -116,12 +142,12 @@ func (r *RouteInterface) AddToRoute(IPList []string) {
 	}
 }
 
-func IPInList(ip string, IPList []string) bool {
-	for i := range IPList {
-		if ip == IPList[i] {
+// Измененная функция для проверки, входит ли IP в подсеть
+func IPInList(ip net.IP, IPList []*net.IPNet) bool {
+	for _, ipNet := range IPList {
+		if ipNet.Contains(ip) {
 			return true
 		}
 	}
-
 	return false
 }
