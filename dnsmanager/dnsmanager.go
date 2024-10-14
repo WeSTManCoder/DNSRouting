@@ -172,6 +172,10 @@ func (DNSManager *SDNSManager) IsDomainMatch(domain string) bool {
 }
 
 func (DNSManager *SDNSManager) GetDomain(DNSRecord *dns.Msg) string {
+	if len(DNSRecord.Question) == 0 {
+		fmt.Println("Ошибка: в DNS-запросе отсутствуют вопросы")
+		return "invalid"
+	}
 	DNSDomain := DNSRecord.Question[0].Name
 	DNSDomain = DNSDomain[:len(DNSDomain)-1]
 
