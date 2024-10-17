@@ -6,10 +6,16 @@ import (
 	. "dnsrouting/routemanager"
 	"dnsrouting/web"
 	"flag"
+	"fmt"
 )
 
+const Version = "1.0.3"
+
 func main() {
-	WorkDir := flag.String("workdir", "/etc/dnsrouting/", "path to files")
+	fmt.Println("[DNSRouting] version:", Version)
+	fmt.Println("[DNSRouting] Author: WeSTMan | VK: https://vk.com/id55942612")
+
+	WorkDir := flag.String("workdir", "/etc/config/dnsrouting/", "path to files")
 	flag.Parse()
 
 	Config.Init(*WorkDir)
