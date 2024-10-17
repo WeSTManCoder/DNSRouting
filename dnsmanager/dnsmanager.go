@@ -85,21 +85,29 @@ func (DNSManager *SDNSManager) Handler(addr net.Addr, buf []byte) {
 	domain := DNSManager.GetDomain(&DNSRequest)
 	if DNSManager.IsDomainMatch(domain) {
 		DNSManager.mutex.Lock()
-		DNSAnswer, HasCache := DNSManager.IsCache(domain)
 
-		if HasCache {
-			DNSManager.mutex.Unlock()
-			DNSManager.AddToRoute(&DNSAnswer)
-			DNSAnswer.Id = DNSRequest.Id
-			buffer, _ := DNSAnswer.Pack()
-			DNSManager.UDPSock.WriteTo(buffer, addr)
+		if Config.EnableCache {
+			DNSAnswer, HasCache := DNSManager.IsCache(domain)
 
-			return
+			if HasCache {
+				DNSManager.mutex.Unlock()
+				DNSManager.AddToRoute(&DNSAnswer)
+				DNSAnswer.Id = DNSRequest.Id
+				buffer, _ := DNSAnswer.Pack()
+				DNSManager.UDPSock.WriteTo(buffer, addr)
+
+				return
+			}
 		}
 
 		DNSAnswer, err := DNSManager.GetDNSFromHTTP(domain)
 		if err == nil && len(DNSAnswer.Answer) > 0 {
-			DNSManager.AddCache(DNSAnswer)
+
+			if Config.EnableCache {
+				DNSManager.AddCache(DNSAnswer)
+			}
+
+			DNSManager.AddToRoute(&DNSAnswer)
 			DNSManager.mutex.Unlock()
 			DNSAnswer.Id = DNSRequest.Id
 
@@ -108,6 +116,7 @@ func (DNSManager *SDNSManager) Handler(addr net.Addr, buf []byte) {
 
 			return
 		}
+		
 		DNSManager.mutex.Unlock()
 	}
 
@@ -196,7 +205,6 @@ func (DNSManager *SDNSManager) IsCache(domain string) (dns.Msg, bool) {
 
 func (DNSManager *SDNSManager) AddCache(DNSRecord dns.Msg) {
 	DNSManager.DNSList = append(DNSManager.DNSList, DNSRecord)
-	DNSManager.AddToRoute(&DNSRecord)
 }
 
 func (DNSManager *SDNSManager) AddToRoute(DNSRecord *dns.Msg) {
