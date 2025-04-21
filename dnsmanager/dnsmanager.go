@@ -116,17 +116,28 @@ func (DNSManager *SDNSManager) Handler(addr net.Addr, buf []byte) {
 
 			return
 		}
-		
+
 		DNSManager.mutex.Unlock()
 	}
 
-	DNSAnswer := DNSManager.GetDNSFromDNSServer(&DNSRequest)
+	var DNSAnswer dns.Msg
+
+	for _, server := range DNSManager.DNSServers {
+		DNSAnswer = DNSManager.GetDNSFromDNSServer(&DNSRequest, server+":53")
+		if len(DNSAnswer.Answer) > 0 {
+			break
+		}
+	}
+
 	answer, err := DNSAnswer.Pack()
 	if err != nil {
 		fmt.Println("Fail pack DNSAnswer with error:", err.Error())
 		return
 	}
-	DNSManager.UDPSock.WriteTo(answer, addr)
+	_, err = DNSManager.UDPSock.WriteTo(answer, addr)
+	if err != nil {
+		fmt.Println("Fail to send DNS response to client:", err.Error())
+	}
 }
 
 func (DNSManager *SDNSManager) LoadDNSRegexList() {
@@ -185,6 +196,7 @@ func (DNSManager *SDNSManager) GetDomain(DNSRecord *dns.Msg) string {
 		fmt.Println("Ошибка: в DNS-запросе отсутствуют вопросы")
 		return "invalid"
 	}
+
 	DNSDomain := DNSRecord.Question[0].Name
 	DNSDomain = DNSDomain[:len(DNSDomain)-1]
 
@@ -242,16 +254,10 @@ func (DNSManager *SDNSManager) UpdateCacheLoop() {
 	}
 }
 
-func (DNSManager *SDNSManager) GetDNSFromDNSServer(DNSRequest *dns.Msg) dns.Msg {
-	var DNSServer string
-	if len(DNSManager.DNSServers) > 1 {
-		DNSServer = DNSManager.DNSServers[rand.Intn(len(DNSManager.DNSServers)-1)] + ":53"
-	} else {
-		DNSServer = DNSManager.DNSServers[0] + ":53"
-	}
+func (DNSManager *SDNSManager) GetDNSFromDNSServer(DNSRequest *dns.Msg, DNSServer string) dns.Msg {
 	conn, errdial := net.Dial("udp4", DNSServer)
 	if errdial != nil {
-		//fmt.Printf("Failed LocalDNS %s with error %s\n", DNSManager.GetDomain(DNSRequest), errdial.Error())
+		fmt.Printf("Failed LocalDNS %s with error %s\n", DNSManager.GetDomain(DNSRequest), errdial.Error())
 		return *DNSRequest
 	}
 	err := conn.SetDeadline(time.Now().Add(time.Duration(Config.DNSTimeout) * time.Second))

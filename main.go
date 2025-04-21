@@ -9,7 +9,7 @@ import (
 	"fmt"
 )
 
-const Version = "1.0.3"
+const Version = "1.0.4"
 
 func main() {
 	fmt.Println("[DNSRouting] version:", Version)
