@@ -140,6 +140,47 @@ func (DNSManager *SDNSManager) Handler(addr net.Addr, buf []byte) {
 	}
 }
 
+func (DNSManager *SDNSManager) GetDNSFromDNSServer(DNSRequest *dns.Msg, DNSServer string) dns.Msg {
+	conn, errdial := net.Dial("udp4", DNSServer)
+	if errdial != nil {
+		fmt.Printf("Failed LocalDNS %s with error %s\n", DNSManager.GetDomain(DNSRequest), errdial.Error())
+		return *DNSRequest
+	}
+	err := conn.SetDeadline(time.Now().Add(time.Duration(Config.DNSTimeout) * time.Second))
+	if err != nil {
+		fmt.Println("Failed to set deadline:", err)
+		return dns.Msg{}
+	}
+
+	defer conn.Close()
+	buf, err := DNSRequest.Pack()
+	if err != nil {
+		fmt.Printf("Failed DNSRequest pack with error %s\n", errdial.Error())
+		return *DNSRequest
+	}
+	_, errw := conn.Write(buf)
+	if errw != nil {
+		fmt.Printf("Failed write to DNS with error: %s\n", errw.Error())
+		return *DNSRequest
+	}
+
+	ReadBuf := make([]byte, 1024)
+	n, err := conn.Read(ReadBuf)
+	if n <= 0 || err != nil {
+		fmt.Printf("Failed DNS (domain %s) with error: %s\n", DNSManager.GetDomain(DNSRequest), err.Error())
+		return *DNSRequest
+	}
+
+	DNSAnswer := dns.Msg{}
+	errpack := DNSAnswer.Unpack(ReadBuf)
+	if errpack != nil {
+		fmt.Printf("Failed to parse DNS with error: %s\n", errpack.Error())
+		return *DNSRequest
+	}
+
+	return DNSAnswer
+}
+
 func (DNSManager *SDNSManager) LoadDNSRegexList() {
 	file, err := os.Open(fmt.Sprintf("%sservices.txt", Config.WorkDir))
 	if err != nil {
@@ -252,47 +293,6 @@ func (DNSManager *SDNSManager) UpdateCacheLoop() {
 
 		fmt.Println("Cache updated")
 	}
-}
-
-func (DNSManager *SDNSManager) GetDNSFromDNSServer(DNSRequest *dns.Msg, DNSServer string) dns.Msg {
-	conn, errdial := net.Dial("udp4", DNSServer)
-	if errdial != nil {
-		fmt.Printf("Failed LocalDNS %s with error %s\n", DNSManager.GetDomain(DNSRequest), errdial.Error())
-		return *DNSRequest
-	}
-	err := conn.SetDeadline(time.Now().Add(time.Duration(Config.DNSTimeout) * time.Second))
-	if err != nil {
-		fmt.Println("Failed to set deadline:", err)
-		return dns.Msg{}
-	}
-
-	defer conn.Close()
-	buf, err := DNSRequest.Pack()
-	if err != nil {
-		fmt.Printf("Failed DNSRequest pack with error %s\n", errdial.Error())
-		return *DNSRequest
-	}
-	_, errw := conn.Write(buf)
-	if errw != nil {
-		fmt.Printf("Failed write to DNS with error: %s\n", errw.Error())
-		return *DNSRequest
-	}
-
-	ReadBuf := make([]byte, 1024)
-	n, err := conn.Read(ReadBuf)
-	if n <= 0 || err != nil {
-		//fmt.Printf("Failed DNS (domain %s) with error: %s\n", DNSManager.GetDomain(DNSRequest), err.Error())
-		return *DNSRequest
-	}
-
-	DNSAnswer := dns.Msg{}
-	errpack := DNSAnswer.Unpack(ReadBuf)
-	if errpack != nil {
-		//fmt.Printf("Failed to parse DNS with error: %s\n", errpack.Error())
-		return *DNSRequest
-	}
-
-	return DNSAnswer
 }
 
 func (DNSManager *SDNSManager) GetDNSFromHTTP(domain string) (dns.Msg, error) {
