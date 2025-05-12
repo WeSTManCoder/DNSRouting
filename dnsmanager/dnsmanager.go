@@ -143,7 +143,9 @@ func (DNSManager *SDNSManager) Handler(addr net.Addr, buf []byte) {
 func (DNSManager *SDNSManager) GetDNSFromDNSServer(DNSRequest *dns.Msg, DNSServer string) dns.Msg {
 	conn, errdial := net.Dial("udp4", DNSServer)
 	if errdial != nil {
-		fmt.Printf("Failed LocalDNS %s with error %s\n", DNSManager.GetDomain(DNSRequest), errdial.Error())
+		if Config.Debug {
+			fmt.Printf("[DEBUG] Failed LocalDNS %s with error %s\n", DNSManager.GetDomain(DNSRequest), errdial.Error())
+		}
 		return *DNSRequest
 	}
 	err := conn.SetDeadline(time.Now().Add(time.Duration(Config.DNSTimeout) * time.Second))
@@ -167,7 +169,9 @@ func (DNSManager *SDNSManager) GetDNSFromDNSServer(DNSRequest *dns.Msg, DNSServe
 	ReadBuf := make([]byte, 1024)
 	n, err := conn.Read(ReadBuf)
 	if n <= 0 || err != nil {
-		fmt.Printf("Failed DNS (domain %s) with error: %s\n", DNSManager.GetDomain(DNSRequest), err.Error())
+		if Config.Debug {
+			fmt.Printf("[DEBUG] Failed DNS (domain %s) with error: %s\n", DNSManager.GetDomain(DNSRequest), err.Error())
+		}
 		return *DNSRequest
 	}
 

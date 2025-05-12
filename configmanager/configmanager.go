@@ -36,6 +36,8 @@ type SConfig struct {
 	WorkDir string
 
 	EnableCache bool
+
+	Debug bool
 }
 
 var Config SConfig
@@ -70,6 +72,7 @@ func (config *SConfig) Save() {
 	config.SetConfKey("AdGuardSecret", config.AdGuardSecret)
 	config.SetConfKey("VPNInterface", config.VPNInterface)
 	config.SetConfKey("EnableCache", strconv.FormatBool(config.EnableCache))
+	config.SetConfKey("Debug", strconv.FormatBool(config.EnableCache))
 
 	err := config.conf.SaveTo(fmt.Sprintf("%ssettings.ini", config.WorkDir))
 	if err != nil {
