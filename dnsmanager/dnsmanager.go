@@ -3,6 +3,7 @@ package dnsmanager
 import (
 	"bufio"
 	"context"
+	. "dnsrouting/adguardmanager"
 	. "dnsrouting/configmanager"
 	. "dnsrouting/routemanager"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"regexp"
 	"strings"
 	"sync"
@@ -342,4 +344,25 @@ func (DNSManager *SDNSManager) GetDNSFromHTTP(domain string) (dns.Msg, error) {
 	DNSAnswer.Unpack(body)
 
 	return DNSAnswer, nil
+}
+
+func (DNSManager *SDNSManager) ResetCache(AdguardEnabled bool) (err error) {
+	if AdguardEnabled {
+		err := AdGuardHome.ResetCache()
+		if err != nil {
+			fmt.Println("Failed reset Adguard DNS Cache:", err)
+			return fmt.Errorf("Failed reset Adguard DNS Cache: %s", err.Error())
+		}
+	} else {
+		cmd := exec.Command("/etc/init.d/dnsmasq", "restart") // команда и аргументы отдельно
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			fmt.Println("Failed reset DNSMasq DNS Cache:", string(output))
+			return fmt.Errorf("Failed reset DNSMasq DNS Cache: %s", string(output))
+		}
+	}
+
+	DNSManager.DNSList = []dns.Msg{}
+
+	return nil
 }

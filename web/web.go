@@ -1,9 +1,9 @@
 package web
 
 import (
-	. "dnsrouting/adguardmanager"
 	. "dnsrouting/configmanager"
 	. "dnsrouting/dnsmanager"
+	. "dnsrouting/version"
 	"embed"
 	"encoding/base64"
 	"fmt"
@@ -28,6 +28,7 @@ type SData struct {
 	DNSTimeout      string
 	DNSCacheRefresh string
 	VPNInterface    string
+	Version         string
 }
 
 //go:embed favicon.ico
@@ -142,14 +143,7 @@ func HTTPSaveHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			DNSManager.LoadDNSRegexList()
 
-			if Config.AdGuard {
-				err := AdGuardHome.ResetCache()
-				if err != nil {
-					fmt.Println("Fail reset DNS Cache:", err)
-					w.Write([]byte(err.Error()))
-					return
-				}
-			}
+			DNSManager.ResetCache(Config.AdGuard)
 		}
 
 		if HasConfigChange {
@@ -182,6 +176,7 @@ func HTTPHandler(w http.ResponseWriter, r *http.Request) {
 	decode, _ := base64.StdEncoding.DecodeString(Config.AdGuardSecret)
 	data.AdGuardSecret = string(decode)
 	data.VPNInterface = Config.VPNInterface
+	data.Version = GetVersion()
 
 	err = template.Execute(w, data)
 	if err != nil {

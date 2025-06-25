@@ -175,14 +175,14 @@
 		<div id="root" class="main">
 		<div class="container px-4 py-5" id="featured-1">
 			<div class="row g-4 row-cols-1 row-cols-lg-1" style="background-color: white; border-radius: 8px; border: 1px solid #E0E5EC; padding-bottom: 2%;">	
-				<h2 class="pb-2 border-bottom">Настройки</h2>
+				<h2 class="pb-2 border-bottom">Настройки <small class="text-muted">v{{.Version}}</small></h2>
 
 				<table class="table table-borderless">
 					<tbody>
 						<tr>
 							<td class="align-middle">Порт сервиса:</td>
 							<td class="align-middle"><input type="text" class="form-control" placeholder="54" id="Port" value="{{.Port}}"></td>
-							<td class="align-middle">Название сетевого интерфейса VPN (tun0 по умолчанию):</td>
+							<td class="align-middle">Название сетевого интерфейса VPN (wg0 по умолчанию):</td>
 							<td class="align-middle"><input type="text" class="form-control" placeholder="tun0" id="VPNInterface" value="{{.VPNInterface}}"></td>
 						</tr>
 						<tr>
@@ -205,7 +205,7 @@
 				</div>
 				
 				<div class="form-group">
-					<label for="exampleFormControlTextarea1">Список доменных имен для роутинг:</label>
+					<label for="exampleFormControlTextarea1">Список доменных имен для роутинга:</label>
 					<textarea class="form-control" id="dnsregexlist" rows="12">{{.DNSRegexList}}</textarea>
 				</div>
 
