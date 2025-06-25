@@ -3,4 +3,5 @@ dnsrouting.bin
 dnsrouting_packed
 dnsrouting_packed.bin
 dnsrouting.mipsle-softfloat
+dnsrouting.arm64-softfloat
 .vscode
