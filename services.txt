@@ -4,21 +4,27 @@
 .*\.?cdninstagram\.com
 .*instagram.*\.fbcdn\.net
 
-//Torrent trackers
+// Torrent trackers
 .*\.?nnmclub\.to
 .*\.?rutracker\.org
+static\.rutracker\.cc
 .*\.?rutor\.org
 .*\.?rutor\.info
+.*\.?nnmstatic\.win
+
+// Youtube
+//.*\.?youtube.com
+//.*\.?youtu.be
+//.*\.?googlevideo.com
+//.*\.?ytimg.com
+//.*\.?googleapis.com
+//.*\.?ggpht.com
+
+// CHATGPT
+.*.openai.com
+cdn.oaistatic.com
+.*.leopard.in.ua
+.*chatgpt.com
 
 //Facebook
 .*\.?facebook\.com
-
-// Play google
-play\.google\.com
-
-//Badoo
-badoo\.com
-
-.*\.?googleusercontent\.com
-
-.*\.filmhd1080\.video

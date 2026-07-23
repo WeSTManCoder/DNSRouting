@@ -29,10 +29,17 @@ type SData struct {
 	DNSCacheRefresh string
 	VPNInterface    string
 	Version         string
+	Debug           bool
 }
 
 //go:embed favicon.ico
 var FaviconIcon []byte
+
+//go:embed jquery-3.6.1.min.js
+var JQuery []byte
+
+//go:embed bootstrap-5.0.2.min.css
+var Bootstrap []byte
 
 //go:embed *.html
 var index embed.FS
@@ -146,6 +153,12 @@ func HTTPSaveHandler(w http.ResponseWriter, r *http.Request) {
 			DNSManager.ResetCache(Config.AdGuard)
 		}
 
+		Debug, err := jsonparser.GetBoolean(value, "Debug")
+		if err == nil {
+			HasConfigChange = true
+			Config.Debug = Debug
+		}
+
 		if HasConfigChange {
 			Config.Save()
 		}
@@ -155,6 +168,18 @@ func HTTPSaveHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func HTTPHandler(w http.ResponseWriter, r *http.Request) {
+	request := r.RequestURI
+
+	if request == "/jquery-3.6.1.min.js" {
+		w.Write(JQuery)
+		return
+	}
+
+	if request == "/bootstrap-5.0.2.min.css" {
+		w.Write(Bootstrap)
+		return
+	}
+
 	template, err := template.ParseFS(index, "index.html")
 	if err != nil {
 		http.Error(w, err.Error(), 500)
@@ -177,6 +202,7 @@ func HTTPHandler(w http.ResponseWriter, r *http.Request) {
 	data.AdGuardSecret = string(decode)
 	data.VPNInterface = Config.VPNInterface
 	data.Version = GetVersion()
+	data.Debug = Config.Debug
 
 	err = template.Execute(w, data)
 	if err != nil {

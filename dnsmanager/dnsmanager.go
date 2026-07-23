@@ -72,7 +72,7 @@ func (DNSManager *SDNSManager) MainUDPHandler() {
 			continue
 		}
 
-		go DNSManager.Handler(addr, buf)
+		go DNSManager.Handler(addr, buf[:n])
 	}
 }
 
@@ -86,12 +86,20 @@ func (DNSManager *SDNSManager) Handler(addr net.Addr, buf []byte) {
 
 	domain := DNSManager.GetDomain(&DNSRequest)
 	if DNSManager.IsDomainMatch(domain) {
+
+		if Config.Debug {
+			fmt.Printf("[DEBUG] Domain %s in dnsrouting list: %s\n", domain)
+		}
+
 		DNSManager.mutex.Lock()
 
 		if Config.EnableCache {
 			DNSAnswer, HasCache := DNSManager.IsCache(domain)
 
 			if HasCache {
+				if Config.Debug {
+					fmt.Printf("[DEBUG] Domain %s is in cache: %s\n", domain)
+				}
 				DNSManager.mutex.Unlock()
 				DNSManager.AddToRoute(&DNSAnswer)
 				DNSAnswer.Id = DNSRequest.Id
@@ -105,6 +113,10 @@ func (DNSManager *SDNSManager) Handler(addr net.Addr, buf []byte) {
 		DNSAnswer, err := DNSManager.GetDNSFromHTTP(domain)
 		if err == nil && len(DNSAnswer.Answer) > 0 {
 
+			if Config.Debug {
+				fmt.Printf("[DEBUG] YES answers from %s (%d), domain: %s\n", Config.DoHServer, len(DNSAnswer.Answer), domain)
+			}
+
 			if Config.EnableCache {
 				DNSManager.AddCache(DNSAnswer)
 			}
@@ -117,6 +129,8 @@ func (DNSManager *SDNSManager) Handler(addr net.Addr, buf []byte) {
 			DNSManager.UDPSock.WriteTo(answer, addr)
 
 			return
+		} else if err != nil && Config.Debug {
+			fmt.Printf("[DEBUG] No answers from %s, domain: %s\n", Config.DoHServer, domain)
 		}
 
 		DNSManager.mutex.Unlock()
@@ -127,7 +141,13 @@ func (DNSManager *SDNSManager) Handler(addr net.Addr, buf []byte) {
 	for _, server := range DNSManager.DNSServers {
 		DNSAnswer = DNSManager.GetDNSFromDNSServer(&DNSRequest, server+":53")
 		if len(DNSAnswer.Answer) > 0 {
+			if Config.Debug {
+				fmt.Printf("[DEBUG] YES answers from %s (%d), domain: %s\n", server, len(DNSAnswer.Answer), domain)
+			}
+
 			break
+		} else if Config.Debug {
+			fmt.Printf("[DEBUG] No answers from %s, domain: %s\n", server, domain)
 		}
 	}
 
@@ -274,6 +294,9 @@ func (DNSManager *SDNSManager) AddToRoute(DNSRecord *dns.Msg) {
 		}
 	}
 	if len(IPList) > 0 {
+		if Config.Debug {
+			fmt.Printf("[DEBUG] Add IP in routing list: %s\n", IPList)
+		}
 		Route.AddToRoute(IPList)
 	}
 }
