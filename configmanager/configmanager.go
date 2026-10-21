@@ -89,7 +89,9 @@ func (config *SConfig) SetConfKey(key string, value string) {
 
 	k, err := conf.GetKey(key)
 	if err != nil {
-		fmt.Println(err)
+		if _, err := conf.NewKey(key, value); err != nil {
+			fmt.Println(err)
+		}
 		return
 	}
 	k.SetValue(value)

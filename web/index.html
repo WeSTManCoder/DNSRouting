@@ -1,245 +1,189 @@
-<html>
-	<head>
-		<meta http-equiv="Content-Type" content="text/html; charset=UTF8">
-		<title>DNSRouting - Главная</title>
-		<link rel="icon" type="image/png" href="favicon.ico"/>
-		<link href="bootstrap-5.0.2.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
-		<script src="jquery-3.6.1.min.js" integrity="sha256-o88AwQnZB+VDvE9tvIXrMQaPlFFSUTR+nldQm1LuPXQ=" crossorigin="anonymous"></script>
-		<style>
-			body {
-				background-color: #F0F0F0;
-				margin: 0;
-				padding: 0;
-			}
-			.main {
-				width: 70%;
-				margin: 0 auto;
-			}
-			textarea {
-				border: 1px solid #E0E5EC;
-			}
-			.alertformtext {
-				margin: 0 auto;
-				font-weight: bold;
-			}
-			.alertcontainer {
-				position: absolute;
-				width: 25%;
-				right: 0;
-				margin: 0.5%;
-				text-align: center;
-			}
-		</style>
-		
-		<script>
-			var DoHServer, DNSServers, RegexList, AdGuard, AdGuardUrl, AdGuardSecret, Port, DNSTimeout, DNSCacheRefresh, VPNInterface;
-			var AlertViewList = new Array();
-			var AlertIcon = { "success": "#check-circle-fill", "primary":	"#info-fill", "danger":	"#exclamation-triangle-fill" };
-
-			window.onload = function() {
-				DoHServer = document.getElementById("dohserver").value.trim();
-				DNSServers = document.getElementById("dnsservers").value.trim();
-				RegexList = document.getElementById("dnsregexlist").value.trim();
-				AdGuard = document.getElementById("AdGuard").checked;
-				AdGuardUrl = document.getElementById("AdGuardUrl").value.trim();
-				AdGuardSecret = document.getElementById("AdGuardSecret").value.trim();
-				Port = document.getElementById("Port").value.trim();
-				DNSTimeout = document.getElementById("DNSTimeout").value.trim();
-				DNSCacheRefresh = document.getElementById("DNSCacheRefresh").value.trim();
-				VPNInterface = document.getElementById("VPNInterface").value.trim();
-				Debug = document.getElementById("Debug").checked;
-			};
-
-			function OnAdGuard(obj) {
-				if (!obj.checked) {
-					document.getElementById("AdGuardSettings").style.display = "none";
-
-					return
-				}
-
-				document.getElementById("AdGuardSettings").style.display = "block";
-			}
-			
-			function PrintAlerts() {
-				let AlertContainer = document.getElementById("alertcontainer");
-				AlertContainer.innerHTML = "";
-				AlertViewList.forEach(function(item, i, AlertViewList) {
-					AlertContainer.innerHTML += item;
-				});
-			}
-			function OnDestroy(id) {
-				AlertViewList.forEach(function(item, i, AlertViewList) {
-					if (item.includes(`key="${id}"`)) {
-						AlertViewList.splice(i, 1);
-					}
-				});
-				
-				PrintAlerts();
-			}			
-			function OnSave() {
-				let DoHServerSave = document.getElementById("dohserver").value.trim();
-				let DNSServersSave = document.getElementById("dnsservers").value.trim();
-				let RegexListSave = document.getElementById("dnsregexlist").value.trim();
-				let AdGuardSave = document.getElementById("AdGuard").checked;
-				let AdGuardUrlSave = document.getElementById("AdGuardUrl").value.trim();
-				let AdGuardSecretSave = document.getElementById("AdGuardSecret").value.trim();
-				let PortSave = document.getElementById("Port").value.trim();
-				let DNSTimeoutSave = document.getElementById("DNSTimeout").value.trim();
-				let DNSCacheRefreshSave = document.getElementById("DNSCacheRefresh").value.trim();
-				let VPNInterfaceSave = document.getElementById("VPNInterface").value.trim();
-				let DebugSave = document.getElementById("Debug").checked;
-				
-				var JSONData = [];
-				
-				if (DoHServer != DoHServerSave) JSONData.push({"DoHServer": DoHServerSave});
-				if (DNSServers != DNSServersSave) JSONData.push({"DNSServers": DNSServersSave});
-				if (RegexList != RegexListSave) JSONData.push({"DNSRegexList": RegexListSave});
-				if (AdGuard != AdGuardSave) JSONData.push({"AdGuard": AdGuardSave});
-				if (AdGuardUrl != AdGuardUrlSave) JSONData.push({"AdGuardUrl": AdGuardUrlSave});
-				if (AdGuardSecret != AdGuardSecretSave) JSONData.push({"AdGuardSecret": AdGuardSecretSave});
-				if (Port != PortSave) JSONData.push({"Port": PortSave});
-				if (DNSTimeout != DNSTimeoutSave) JSONData.push({"DNSTimeout": DNSTimeoutSave});
-				if (DNSCacheRefresh != DNSCacheRefreshSave) JSONData.push({"DNSCacheRefresh": DNSCacheRefreshSave});
-				if (VPNInterface != VPNInterfaceSave) JSONData.push({"VPNInterface": VPNInterfaceSave});
-				if (Debug != DebugSave) JSONData.push({"Debug": DebugSave});
-					
-				if (Object.keys(JSONData).length > 0) {
-					$.ajax({
-						type: "POST",
-						url: "/Save",
-						data: JSON.stringify(JSONData),
-						contentType: "application/json; charset=utf-8",
-						success: function(data) {
-							if (data != "OK") {
-								AddAlert("danger", data);
-								return;
-							}
-
-							AddAlert("success", "Успешно!");
-							DoHServer = DoHServerSave;
-							DNSServers = DNSServersSave;
-							RegexList = RegexListSave;
-							AdGuard = AdGuardSave;
-							AdGuardUrl = AdGuardUrlSave;
-							AdGuardSecret = AdGuardSecretSave;
-							VPNInterface = VPNInterfaceSave;
-						},
-						failure: function(Error) {
-							AddAlert("danger", "Ошибка: " + Error);
-						}
-					});
-					
-					AddAlert("primary", "Запрос был отправлен!");
-					
-					return;
-				}
-				
-				AddAlert("primary", "Данные на странице не изменились!");
-				
-			};
-			function AddAlert(type, text) {
-			let id = AlertViewList.length + 1;
-				let Alert = `<div id="alertform_${type}" key="${id}" onclick="OnDestroy(${id})">
-								<div class="alert alert-${type} d-flex align-items-center" role="alert">
-								 <div class="alertformtext">
-									<svg class="bi flex-shrink-0 me-2" width="24" height="24" role="img" aria-label="${type}:"><use xlink:href="${AlertIcon[type]}"/></svg>
-									<span id="text">${text}</span>
-								  </div>
-								</div>
-							</div>`
-				
-				AlertViewList.unshift(Alert);
-				PrintAlerts();
-				setTimeout(OnDestroy, 5000, id);
-			}
-
-			function ToggleAdGuard(id) {
-				obj = document.getElementById(id)
-				obj.checked = !obj.checked
-				OnAdGuard(obj)
-			}
-		</script>
-	</head>
-	
-	<body>
-		<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
-			<symbol id="check-circle-fill" fill="currentColor" viewBox="0 0 16 16">
-				<path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
-			</symbol>
-			<symbol id="info-fill" fill="currentColor" viewBox="0 0 16 16">
-				<path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/>
-			</symbol>
-			<symbol id="exclamation-triangle-fill" fill="currentColor" viewBox="0 0 16 16">
-				<path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
-			</symbol>
-		</svg>
-		<div class="alertcontainer" id="alertcontainer"></div>
-		
-		<div id="root" class="main">
-		<div class="container px-4 py-5" id="featured-1">
-			<div class="row g-4 row-cols-1 row-cols-lg-1" style="background-color: white; border-radius: 8px; border: 1px solid #E0E5EC; padding-bottom: 2%;">	
-				<h2 class="pb-2 border-bottom">Настройки <small class="text-muted">v{{.Version}}</small></h2>
-
-				<div class="custom-control custom-checkbox">
-					<input type="checkbox" class="custom-control-input" id="Debug" {{ if .Debug }} checked {{ end }}>
-					<label class="custom-control-label" for="customCheck1">Включить Debug</label>
-				</div>
-
-				<table class="table table-borderless">
-					<tbody>
-						<tr>
-							<td class="align-middle">Порт сервиса:</td>
-							<td class="align-middle"><input type="text" class="form-control" placeholder="54" id="Port" value="{{.Port}}"></td>
-							<td class="align-middle">Название сетевого интерфейса VPN (wg0 по умолчанию):</td>
-							<td class="align-middle"><input type="text" class="form-control" placeholder="tun0" id="VPNInterface" value="{{.VPNInterface}}"></td>
-						</tr>
-						<tr>
-							<td class="align-middle">Макс. время ответа от DNS (сек.):</td>
-							<td class="align-middle"><input type="text" class="form-control" placeholder="5" id="DNSTimeout" value="{{.DNSTimeout}}"></td>
-							<td class="align-middle">Время обновления локального кэша (сек.):</td>
-							<td class="align-middle"><input type="text" class="form-control" placeholder="43200" id="DNSCacheRefresh" value="{{.DNSCacheRefresh}}"></td>
-						</tr>
-					</tbody>
-				</table>
-
-				<div class="form-group">
-					<label for="exampleFormControlTextarea1">DNS Over HTTPS (DoH) сервер:</label>
-					<textarea class="form-control" id="dohserver" rows="1">{{.DNSHTTPServer}}</textarea>
-				</div>
-
-				<div class="form-group">
-					<label for="exampleFormControlTextarea1">Список DNS серверов (udp):</label>
-					<textarea class="form-control" id="dnsservers" rows="3">{{.DNSServers}}</textarea>
-				</div>
-				
-				<div class="form-group">
-					<label for="exampleFormControlTextarea1">Список доменных имен для роутинга:</label>
-					<textarea class="form-control" id="dnsregexlist" rows="12">{{.DNSRegexList}}</textarea>
-				</div>
-
-				<div class="form-group">
-					<div class="custom-control custom-checkbox">
-						<input type="checkbox" class="custom-control-input" id="AdGuard" onclick="OnAdGuard(this)" {{ if .AdGuard }} checked {{ end }}>
-						<label class="custom-control-label" for="customCheck1" onclick="ToggleAdGuard('AdGuard')">Включить AdGuardHome API (сброс кэша)</label>
-					</div>
-
-					<table class="table table-borderless" id="AdGuardSettings" {{ if not .AdGuard }} style="display: none" {{ end }}>
-						<tbody>
-							<tr>
-								<td class="align-middle">AdGuardHome Url:</td>
-								<td class="align-middle"><input type="text" class="form-control" placeholder="http://192.168.1.1:3000" id="AdGuardUrl" value="{{.AdGuardUrl}}"></td>
-								<td class="align-middle">AdGuardHome [логин:пароль]:</td>
-								<td class="align-middle"><input type="text" class="form-control" placeholder="login:password" id="AdGuardSecret" value="{{.AdGuardSecret}}"></td>
-							</tr>
-						</tbody>
-					</table>
-				</div>
-
-				<div style="display: flex; justify-content: center;">
-					<button type="button" class="btn btn-primary btn-standard mr-2" onclick="OnSave()">Сохранить</button>
-				</div>
-			</div>
-		</div>
-  </div>
-	</body>
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DNSRouting — Панель управления</title>
+  <link rel="icon" href="/favicon.ico">
+  <style>
+    :root{color-scheme:dark;--bg:#0a101c;--panel:#121c2c;--panel2:#172337;--line:#29384d;--text:#e9f0fa;--muted:#91a2ba;--accent:#5c9dff;--accent2:#70e2cc;--bad:#ff868f;--radius:16px}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.55 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+    button,input,textarea{font:inherit}button{cursor:pointer}a{color:inherit;text-decoration:none}
+    .shell{min-height:100vh;display:grid;grid-template-columns:244px minmax(0,1fr)}
+    .sidebar{background:#0e1726;border-right:1px solid var(--line);padding:25px 17px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:30px}
+    .brand{display:flex;align-items:center;gap:12px;padding:0 12px}.brand-icon{width:41px;height:41px;display:grid;place-items:center;background:linear-gradient(135deg,#3876f0,#54d6c5);border-radius:13px;font-size:23px;color:white;font-weight:800}.brand strong{display:block;font-size:17px;letter-spacing:-.5px}.brand small{display:block;color:var(--muted)}
+    .nav{display:grid;gap:6px}.nav a{padding:11px 13px;color:var(--muted);border-radius:10px;display:flex;gap:12px;align-items:center}.nav a:hover,.nav a.active{background:#1b2d46;color:var(--text)}.nav a.active{box-shadow:inset 3px 0 var(--accent)}.nav .glyph{font-size:17px;width:23px;text-align:center}
+    .aside-bottom{margin-top:auto;padding:16px;background:var(--panel);border:1px solid var(--line);border-radius:13px;color:var(--muted)}.aside-bottom b{display:block;color:var(--text);font-size:13px;margin-bottom:5px}.aside-bottom code{color:var(--accent2)}
+    .main{max-width:1260px;width:100%;margin:0 auto;padding:35px 40px 110px}.top{display:flex;justify-content:space-between;gap:20px;align-items:center;margin-bottom:30px}.eyebrow{color:var(--accent2);text-transform:uppercase;letter-spacing:1.8px;font-weight:750;font-size:11px;margin:0 0 7px}.top h1{font-size:31px;letter-spacing:-1px;line-height:1.2;margin:0}.top p{color:var(--muted);margin:9px 0 0}.version{color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:30px;padding:7px 13px;white-space:nowrap}
+    .overview{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px;margin-bottom:31px}.stat{background:linear-gradient(145deg,#17243a,#111b2b);border:1px solid var(--line);padding:19px 21px;border-radius:var(--radius)}.stat .stat-title{color:var(--muted);font-size:12px}.stat strong{display:block;font-size:22px;line-height:1.3;margin:6px 0 2px;overflow-wrap:anywhere}.stat small{color:var(--muted)}
+    .section{margin:0 0 25px;scroll-margin-top:25px}.section-title{display:flex;align-items:baseline;justify-content:space-between;margin:0 0 13px;gap:12px}.section-title h2{font-size:18px;margin:0;letter-spacing:-.3px}.section-title span{color:var(--muted);font-size:12px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:24px}.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.field{min-width:0}.field.full{grid-column:1/-1}label.field-label{display:block;margin-bottom:9px;font-weight:600;font-size:13px}.help{display:block;color:var(--muted);font-size:12px;margin-top:8px}.input,textarea{display:block;width:100%;border:1px solid #34445b;background:#0d1727;color:var(--text);border-radius:10px;outline:none;padding:12px 14px;transition:border-color .15s,box-shadow .15s}.input:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px #5c9dff22}textarea{resize:vertical;min-height:92px;line-height:1.65;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px}#dnsservers{min-height:155px}#dnsregexlist{min-height:270px}.input::placeholder,textarea::placeholder{color:#61738c}
+    .tip{background:#10263a;border:1px solid #24475d;border-radius:11px;padding:13px 15px;color:#b7dce8;font-size:12px;margin-top:16px}.tip code{color:#82e6d3}.switch-row{display:flex;align-items:center;justify-content:space-between;gap:20px}.switch-row strong{display:block}.switch-row p{color:var(--muted);font-size:12px;margin:4px 0 0}.switch{position:relative;display:inline-block;width:46px;height:26px;flex:0 0 auto}.switch input{opacity:0;width:0;height:0;position:absolute}.track{position:absolute;inset:0;background:#465469;border-radius:99px;transition:background .15s}.track::before{content:"";position:absolute;left:4px;top:4px;width:18px;height:18px;background:white;border-radius:50%;transition:transform .15s}.switch input:checked+.track{background:var(--accent)}.switch input:checked+.track::before{transform:translateX(20px)}.switch input:focus-visible+.track{outline:3px solid #8cb9ff;outline-offset:3px}.separator{height:1px;background:var(--line);margin:22px 0}.hidden{display:none!important}
+    .footer{position:fixed;bottom:0;left:244px;right:0;z-index:5;background:#101b2bed;border-top:1px solid var(--line);backdrop-filter:blur(16px);padding:14px 40px;display:flex;align-items:center;justify-content:space-between;gap:15px}.state{display:flex;align-items:center;gap:9px;color:var(--muted);font-size:12px}.state-dot{width:9px;height:9px;border-radius:50%;background:#6d829b}.state.dirty .state-dot{background:#ffcd75}.state.success .state-dot{background:var(--accent2)}.state.error .state-dot{background:var(--bad)}.actions{display:flex;gap:10px}.btn{border:1px solid var(--line);background:#26344a;color:var(--text);padding:10px 18px;border-radius:10px;font-weight:700}.btn:hover{filter:brightness(1.13)}.btn-primary{background:var(--accent);border-color:var(--accent);color:#06162d}.btn:disabled{opacity:.5;cursor:not-allowed}.toast{position:fixed;right:30px;top:24px;max-width:min(420px,calc(100vw - 32px));z-index:10;padding:14px 18px;border-radius:12px;border:1px solid #3a6074;background:#193345;box-shadow:0 15px 50px #0007;color:#dff4ff;display:none}.toast.error{background:#46222d;border-color:#884052;color:#ffdce0}.toast.show{display:block}.count{color:var(--accent2);font-weight:700}
+    @media(max-width:1000px){.shell{grid-template-columns:1fr}.sidebar{height:auto;position:static;display:block;padding:16px}.brand{display:inline-flex}.nav{display:flex;flex-wrap:wrap;margin-top:14px}.nav a{padding:8px 11px}.aside-bottom{display:none}.main{padding:24px 22px 105px}.footer{left:0;padding:14px 22px}}
+    @media(max-width:640px){.top{align-items:flex-start}.top h1{font-size:25px}.overview{grid-template-columns:1fr}.fields{grid-template-columns:1fr}.panel{padding:18px}.section-title{display:block}.section-title span{display:block;margin-top:4px}.footer{padding:12px 15px}.btn{padding:10px 13px}.nav .glyph{display:none}.nav a{font-size:12px}.version{font-size:11px}}
+    body.light {color-scheme:light;--bg:#f4f7fc;--panel:#fff;--panel2:#f4f8ff;--line:#dce4ef;--text:#18283f;--muted:#64748b;--accent:#2e6edf;--accent2:#137c70;--bad:#bf334e}
+    body.light .sidebar{background:#eaf0f9}body.light .nav a:hover,body.light .nav a.active{background:#dbe8fc}body.light .stat{background:#fff}body.light .input,body.light textarea{background:#f9fbff;border-color:#cbd6e4}body.light .tip{background:#eaf6f9;color:#31536c;border-color:#c6e1e7}body.light .tip code{color:#006e62}body.light .footer{background:#ffffffea}body.light .btn{background:#ecf2fb;color:#1d3556}body.light .btn-primary{background:var(--accent);color:white}
+    #dnsonlyregexlist{min-height:235px}#dohserver{min-height:130px}
+    .theme-btn{width:100%;border:1px solid var(--line);border-radius:10px;background:var(--panel2);color:var(--text);padding:10px;font-weight:650}
+  </style>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand"><span class="brand-icon">D</span><span><strong>DNSRouting</strong><small>Control Center</small></span></div>
+    <nav class="nav" aria-label="Разделы">
+      <a href="#dns" class="active"><span class="glyph">◈</span> DNS-серверы</a>
+      <a href="#routing"><span class="glyph">⌁</span> Маршрутизация</a>
+      <a href="#onlydoh"><span class="glyph">◇</span> Только DoH</a>
+      <a href="#adguard"><span class="glyph">◇</span> AdGuard Home</a>
+      <a href="#system"><span class="glyph">⚙</span> Параметры</a>
+    </nav>
+    <button id="themeToggle" class="theme-btn" type="button">Светлая тема</button><div class="aside-bottom"><b>Версия приложения</b><code>v{{.Version}}</code><div style="margin-top:8px">Настройки сохраняются через локальный API сервиса.</div></div>
+  </aside>
+  <main class="main">
+    <header class="top"><div><p class="eyebrow">Управление DNS</p><h1>Панель настроек</h1><p>DNS-разрешение, правила маршрутизации и параметры службы.</p></div><span class="version">v{{.Version}}</span></header>
+    <div class="overview">
+      <div class="stat"><div class="stat-title">DNS-серверов в списке</div><strong id="serverCount">—</strong><small>UDP и DNS-over-HTTPS</small></div>
+      <div class="stat"><div class="stat-title">Правил маршрутизации</div><strong id="ruleCount">—</strong><small>Активные строки в services.txt</small></div>
+      <div class="stat"><div class="stat-title">AdGuard Home API</div><strong id="adguardStatus">—</strong><small>Сброс DNS-кеша</small></div>
+    </div>
+    <section id="dns" class="section">
+      <div class="section-title"><h2>DNS-серверы</h2><span>Резолверы и приоритеты</span></div>
+      <div class="panel"><div class="fields">
+        <div class="field full"><label class="field-label" for="dohserver">Основные DoH-серверы для специальных доменов</label><textarea id="dohserver" spellcheck="false" placeholder="https://dns.google&#10;https://cloudflare-dns.com/dns-query">{{.DNSHTTPServer}}</textarea><small class="help">Один HTTPS-адрес в строке, в порядке приоритета. Применяются как к маршрутизируемым доменам, так и к доменам «только DoH». При отсутствии DNS-записей пробуется следующий сервер.</small></div>
+        <div class="field full"><label class="field-label" for="dnsservers">Список DNS-серверов <span class="count" id="inlineServerCount"></span></label><textarea id="dnsservers" spellcheck="false" placeholder="https://dns.google&#10;8.8.8.8&#10;udp://1.1.1.1:53">{{.DNSServers}}</textarea><small class="help">Один сервер в строке. Порядок строк задаёт приоритет: сначала первый, затем следующий при отсутствии ответа с записями.</small></div>
+      </div><div class="tip">Поддерживаемые адреса: <code>https://dns.google</code>, <code>https://dns.google/dns-query</code>, <code>8.8.8.8</code>, <code>udp://8.8.8.8</code>, <code>udp://8.8.8.8:53</code>.</div></div>
+    </section>
+    <section id="routing" class="section">
+      <div class="section-title"><h2>Правила маршрутизации</h2><span>Файл services.txt</span></div>
+      <div class="panel"><label class="field-label" for="dnsregexlist">Домены и регулярные выражения <span class="count" id="inlineRuleCount"></span></label><textarea id="dnsregexlist" spellcheck="false" placeholder="example.com&#10;.*\.example.org">{{.DNSRegexList}}</textarea><small class="help">Одно правило в строке. Используются существующие правила сопоставления доменов DNSRouting. Изменение списка при сохранении запускает сброс DNS-кеша.</small></div>
+    </section>
+    <section id="onlydoh" class="section">
+      <div class="section-title"><h2>Только DoH — без маршрутизации</h2><span>Файл doh-only.txt</span></div>
+      <div class="panel">
+        <label class="field-label" for="dnsonlyregexlist">Домены и регулярные выражения <span class="count" id="inlineOnlyCount"></span></label>
+        <textarea id="dnsonlyregexlist" spellcheck="false" placeholder="^example\.com$&#10;(^|\.)example\.org$">{{.DNSOnlyRegexList}}</textarea>
+        <small class="help">Для этих доменов используется основной список DoH, но IP-адреса НЕ добавляются в VPN-маршруты. Если домен совпал с обоими списками, приоритет имеет раздел «Маршрутизация».</small>
+        <div class="tip">Правила — регулярные выражения. Для конкретного домена используйте <code>^example\.com$</code>, для домена и поддоменов — <code>(^|\.)example\.com$</code>.</div>
+      </div>
+    </section>
+    <section id="adguard" class="section">
+      <div class="section-title"><h2>AdGuard Home</h2><span>Управление DNS-кешем</span></div>
+      <div class="panel"><div class="switch-row"><div><strong>Использовать AdGuard Home API</strong><p>При сбросе DNS-кеша обращаться к AdGuard Home вместо перезапуска dnsmasq.</p></div><label class="switch"><input id="AdGuard" type="checkbox" {{if .AdGuard}}checked{{end}}><span class="track"></span></label></div>
+        <div id="AdGuardSettings" {{if not .AdGuard}}class="hidden"{{end}}><div class="separator"></div><div class="fields"><div class="field"><label class="field-label" for="AdGuardUrl">URL AdGuard Home</label><input class="input" id="AdGuardUrl" value="{{.AdGuardUrl}}" placeholder="http://192.168.1.1:3000"><small class="help">Адрес API AdGuard Home.</small></div><div class="field"><label class="field-label" for="AdGuardSecret">Логин и пароль</label><input class="input" type="password" autocomplete="off" id="AdGuardSecret" value="{{.AdGuardSecret}}" placeholder="login:password"><small class="help">Передаётся только при изменении значения. Нажми на значок справа в поле браузера, чтобы показать пароль, если он доступен.</small></div></div></div>
+      </div>
+    </section>
+    <section id="system" class="section">
+      <div class="section-title"><h2>Параметры сервиса</h2><span>Сеть, таймауты и диагностика</span></div>
+      <div class="panel"><div class="fields">
+        <div class="field"><label class="field-label" for="Port">Порт DNS-сервиса</label><input class="input" id="Port" type="number" min="1" max="65535" step="1" value="{{.Port}}"></div>
+        <div class="field"><label class="field-label" for="VPNInterface">VPN-интерфейс</label><input class="input" id="VPNInterface" value="{{.VPNInterface}}" placeholder="wg0"></div>
+        <div class="field"><label class="field-label" for="DNSTimeout">Таймаут DNS, секунд</label><input class="input" id="DNSTimeout" type="number" min="1" step="1" value="{{.DNSTimeout}}"></div>
+        <div class="field"><label class="field-label" for="DNSCacheRefresh">Обновление кеша, секунд</label><input class="input" id="DNSCacheRefresh" type="number" min="1" step="1" value="{{.DNSCacheRefresh}}"></div>
+      </div><div class="separator"></div><div class="switch-row"><div><strong>Режим отладки (Debug)</strong><p>Дополнительные диагностические сообщения в логах сервиса.</p></div><label class="switch"><input id="Debug" type="checkbox" {{if .Debug}}checked{{end}}><span class="track"></span></label></div></div>
+    </section>
+  </main>
+</div>
+<div class="footer"><div id="saveState" class="state"><span class="state-dot"></span><span id="saveStateText">Изменений нет</span></div><div class="actions"><button class="btn" type="button" id="discardBtn" disabled>Отменить</button><button class="btn btn-primary" type="button" id="saveBtn" disabled>Сохранить изменения</button></div></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script>
+(function () {
+  'use strict';
+  const fields = [
+    {id:'dohserver', key:'DoHServer'},
+    {id:'dnsservers', key:'DNSServers'},
+    {id:'dnsregexlist', key:'DNSRegexList'},
+    {id:'dnsonlyregexlist', key:'DNSOnlyRegexList'},
+    {id:'AdGuard', key:'AdGuard', bool:true},
+    {id:'AdGuardUrl', key:'AdGuardUrl'},
+    {id:'AdGuardSecret', key:'AdGuardSecret'},
+    {id:'Port', key:'Port'},
+    {id:'DNSTimeout', key:'DNSTimeout'},
+    {id:'DNSCacheRefresh', key:'DNSCacheRefresh'},
+    {id:'VPNInterface', key:'VPNInterface'},
+    {id:'Debug', key:'Debug', bool:true}
+  ];
+  const el = id => document.getElementById(id);
+  const read = field => field.bool ? el(field.id).checked : el(field.id).value.trim();
+  const snapshot = () => Object.fromEntries(fields.map(f => [f.key, read(f)]));
+  let saved = snapshot();
+  let busy = false;
+  let toastTimer;
+  const difference = () => fields.filter(f => saved[f.key] !== read(f)).map(f => ({[f.key]:read(f)}));
+  const showToast = (message, error=false) => {
+    const node=el('toast');
+    node.textContent=message;
+    node.className='toast show'+(error?' error':'');
+    clearTimeout(toastTimer);
+    toastTimer=setTimeout(()=>node.classList.remove('show'),5500);
+  };
+  const update = () => {
+    const dirty=difference().length>0;
+    el('saveBtn').disabled=busy||!dirty;
+    el('discardBtn').disabled=busy||!dirty;
+    const state=el('saveState');
+    state.className='state'+(busy?' dirty':dirty?' dirty':'');
+    el('saveStateText').textContent=busy?'Сохранение…':dirty?'Есть несохранённые изменения':'Изменений нет';
+    const servers=el('dnsservers').value.split(/[;\r\n]+/).map(s=>s.trim()).filter(Boolean);
+    const rules=el('dnsregexlist').value.split(/\r?\n/).map(s=>s.trim()).filter(s=>s.length>2&&!s.includes('//')&&!/^\d+\.\d+\.\d+\.\d+$/.test(s));
+    el('serverCount').textContent=servers.length;
+    el('ruleCount').textContent=rules.length;
+    const only=el('dnsonlyregexlist').value.split(/\r?\n/).map(x=>x.trim()).filter(x=>x.length>2&&!x.startsWith('#')&&!x.startsWith('//'));
+    el('inlineOnlyCount').textContent='('+only.length+')';
+    el('inlineServerCount').textContent='('+servers.length+')';
+    el('inlineRuleCount').textContent='('+rules.length+')';
+    el('adguardStatus').textContent=el('AdGuard').checked?'Включён':'Выключен';
+    el('AdGuardSettings').classList.toggle('hidden',!el('AdGuard').checked);
+  };
+  const restore = () => {
+    for(const f of fields){if(f.bool)el(f.id).checked=saved[f.key];else el(f.id).value=saved[f.key];}
+    update();
+  };
+  const validate = () => {
+    for(const [id,min,max] of [['Port',1,65535],['DNSTimeout',1,2147483647],['DNSCacheRefresh',1,2147483647]]) {
+      const raw=read(fields.find(f=>f.id===id));
+      const val=Number(raw);
+      if(!/^\d+$/.test(raw)||!Number.isSafeInteger(val)||val<min||val>max){el(id).focus();throw new Error('Некорректное значение: '+el(id).previousElementSibling.textContent);}
+    }
+    const primary=el('dohserver').value.split(/[;\r\n]+/).map(s=>s.trim()).filter(Boolean);
+    if (!primary.length) throw new Error('Укажите хотя бы один основной DoH-сервер');
+    for(const server of primary){try {const u=new URL(server);if(u.protocol!=='https:'||!u.hostname||u.username||u.password)throw new Error();}catch(_){throw new Error('Некорректный основной DoH: '+server);}}
+    for(const server of el('dnsservers').value.split(/[;\r\n]+/).map(s=>s.trim()).filter(Boolean)) {
+      if(/^https:\/\//i.test(server)) {
+        try { const u=new URL(server);if(!u.hostname||u.username||u.password)throw new Error(); }
+        catch(_) {throw new Error('Некорректный DoH-адрес: '+server);}
+      } else if(/:\/\//.test(server)&&!/^udp:\/\//i.test(server)) {
+        throw new Error('Неподдерживаемый протокол DNS: '+server);
+      }
+    }
+  };
+  const save = async () => {
+    if(busy)return;
+    let payload=difference();
+    if(!payload.length)return;
+    try{validate();}catch(err){showToast(err.message,true);return;}
+    busy=true;update();
+    try{
+      const response=await fetch('/Save',{method:'POST',headers:{'Content-Type':'application/json; charset=utf-8'},body:JSON.stringify(payload)});
+      const body=await response.text();
+      if(!response.ok||body.trim()!=='OK')throw new Error(body.trim()||'HTTP '+response.status);
+      // Фиксируем только отправленные поля: пользователь мог изменить другие поля во время запроса.
+      for(const entry of payload){const key=Object.keys(entry)[0];saved[key]=entry[key];}
+      showToast('Настройки успешно сохранены');
+    }catch(err){showToast('Не удалось сохранить настройки: '+err.message,true);}
+    finally{busy=false;update();}
+  };
+  el('themeToggle').addEventListener('click',()=>{
+    document.body.classList.toggle('light');
+    el('themeToggle').textContent=document.body.classList.contains('light')?'Тёмная тема':'Светлая тема';
+  });
+  fields.forEach(f=>{el(f.id).addEventListener('input',update);el(f.id).addEventListener('change',update);});
+  el('saveBtn').addEventListener('click',save);
+  el('discardBtn').addEventListener('click',restore);
+  document.querySelectorAll('.nav a').forEach(a=>a.addEventListener('click',()=>{document.querySelectorAll('.nav a').forEach(n=>n.classList.remove('active'));a.classList.add('active');}));
+  window.addEventListener('beforeunload',event=>{if(difference().length){event.preventDefault();event.returnValue='';}});
+  update();
+})();
+</script>
+</body>
 </html>

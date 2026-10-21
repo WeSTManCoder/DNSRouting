@@ -6,30 +6,32 @@ import (
 	. "dnsrouting/version"
 	"embed"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"html/template"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
-
-	"github.com/buger/jsonparser"
+	"sync"
 )
 
 type SData struct {
-	DNSServers      string
-	DNSRegexList    string
-	DNSHTTPServer   string
-	AdGuard         bool
-	AdGuardUrl      string
-	AdGuardSecret   string
-	Port            string
-	DNSTimeout      string
-	DNSCacheRefresh string
-	VPNInterface    string
-	Version         string
-	Debug           bool
+	DNSServers       string
+	DNSRegexList     string
+	DNSOnlyRegexList string
+	DNSHTTPServer    string
+	AdGuard          bool
+	AdGuardUrl       string
+	AdGuardSecret    string
+	Port             string
+	DNSTimeout       string
+	DNSCacheRefresh  string
+	VPNInterface     string
+	Version          string
+	Debug            bool
 }
 
 //go:embed favicon.ico
@@ -60,111 +62,170 @@ func HTTPFaviconHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(FaviconIcon)
 }
 
+var webSaveMutex sync.Mutex
+
 func HTTPSaveHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		w.Write([]byte("Method not allowed (only POST)"))
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
 	defer r.Body.Close()
-
-	body, err := ioutil.ReadAll(r.Body)
+	var updates []map[string]json.RawMessage
+	err := json.NewDecoder(io.LimitReader(r.Body, 1024*1024)).Decode(&updates)
 	if err != nil {
-		w.Write([]byte(err.Error()))
+		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	HasConfigChange := false
-	jsonparser.ArrayEach(body, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-		Port, err := jsonparser.GetString(value, "Port")
-		if err == nil {
-			iPort, errint := strconv.Atoi(Port)
-			if errint == nil {
-				HasConfigChange = true
-				Config.Port = iPort
+	// Предварительная проверка исключает частичное изменение настроек при ошибке формата.
+	for _, item := range updates {
+		for key, raw := range item {
+			switch key {
+			case "Port", "DNSTimeout", "DNSCacheRefresh":
+				var v string
+				if err := json.Unmarshal(raw, &v); err != nil {
+					http.Error(w, key+": expected string", 400)
+					return
+				}
+				n, err := strconv.Atoi(v)
+				if err != nil || n < 1 || (key == "Port" && n > 65535) {
+					http.Error(w, "Invalid "+key, 400)
+					return
+				}
+			case "DoHServer", "DNSServers":
+				var v string
+				if err := json.Unmarshal(raw, &v); err != nil {
+					http.Error(w, "Invalid "+key, 400)
+					return
+				}
+				servers := strings.FieldsFunc(v, func(r rune) bool { return r == ';' || r == '\n' || r == '\r' })
+				if key == "DoHServer" && len(servers) == 0 {
+					http.Error(w, "At least one DoH server is required", 400)
+					return
+				}
+				for _, server := range servers {
+					protocol, _, err := DNSManager.ParseDNSServer(strings.TrimSpace(server))
+					if err != nil || (key == "DoHServer" && protocol != "https") {
+						http.Error(w, "Invalid server: "+server, 400)
+						return
+					}
+				}
+			case "DNSRegexList", "DNSOnlyRegexList":
+				var v string
+				if err := json.Unmarshal(raw, &v); err != nil {
+					http.Error(w, "Invalid "+key, 400)
+					return
+				}
+				for _, line := range strings.Split(v, "\n") {
+					line = strings.TrimSpace(line)
+					if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "//") {
+						continue
+					}
+					if _, err := regexp.Compile(line); err != nil {
+						http.Error(w, "Invalid regex: "+line+": "+err.Error(), 400)
+						return
+					}
+				}
 			}
 		}
+	}
 
-		DNSCacheRefresh, err := jsonparser.GetString(value, "DNSCacheRefresh")
-		if err == nil {
-			iDNSCacheRefresh, errint := strconv.Atoi(DNSCacheRefresh)
-			if errint == nil {
-				HasConfigChange = true
-				Config.DNSCacheRefresh = iDNSCacheRefresh
+	webSaveMutex.Lock()
+	defer webSaveMutex.Unlock()
+	configChanged := false
+	resetCache := false
+	for _, item := range updates {
+		for key, raw := range item {
+			switch key {
+			case "Port":
+				var v string
+				_ = json.Unmarshal(raw, &v)
+				Config.Port, _ = strconv.Atoi(v)
+				configChanged = true
+			case "DNSTimeout":
+				var v string
+				_ = json.Unmarshal(raw, &v)
+				Config.DNSTimeout, _ = strconv.Atoi(v)
+				configChanged = true
+			case "DNSCacheRefresh":
+				var v string
+				_ = json.Unmarshal(raw, &v)
+				Config.DNSCacheRefresh, _ = strconv.Atoi(v)
+				configChanged = true
+			case "AdGuard":
+				var v bool
+				if json.Unmarshal(raw, &v) == nil {
+					Config.AdGuard = v
+					configChanged = true
+				}
+			case "AdGuardUrl":
+				var v string
+				if json.Unmarshal(raw, &v) == nil {
+					Config.AdGuardUrl = v
+					configChanged = true
+				}
+			case "AdGuardSecret":
+				var v string
+				if json.Unmarshal(raw, &v) == nil {
+					Config.AdGuardSecret = base64.StdEncoding.EncodeToString([]byte(v))
+					configChanged = true
+				}
+			case "DoHServer":
+				var v string
+				_ = json.Unmarshal(raw, &v)
+				Config.DoHServer = strings.Join(strings.FieldsFunc(v, func(r rune) bool { return r == ';' || r == '\n' || r == '\r' }), ";")
+				configChanged = true
+				resetCache = true
+			case "DNSServers":
+				var v string
+				_ = json.Unmarshal(raw, &v)
+				Config.DNSServerList = strings.Join(strings.FieldsFunc(v, func(r rune) bool { return r == ';' || r == '\n' || r == '\r' }), ";")
+				DNSManager.InitDNSServers()
+				configChanged = true
+			case "VPNInterface":
+				var v string
+				if json.Unmarshal(raw, &v) == nil {
+					Config.VPNInterface = v
+					configChanged = true
+				}
+			case "Debug":
+				var v bool
+				if json.Unmarshal(raw, &v) == nil {
+					Config.Debug = v
+					configChanged = true
+				}
+			case "DNSRegexList":
+				var v string
+				_ = json.Unmarshal(raw, &v)
+				if err := os.WriteFile(Config.WorkDir+"services.txt", []byte(v+"\n"), 0644); err != nil {
+					http.Error(w, err.Error(), 500)
+					return
+				}
+				DNSManager.LoadDNSRegexList()
+				resetCache = true
+			case "DNSOnlyRegexList":
+				var v string
+				_ = json.Unmarshal(raw, &v)
+				if err := os.WriteFile(Config.WorkDir+"doh-only.txt", []byte(v+"\n"), 0644); err != nil {
+					http.Error(w, err.Error(), 500)
+					return
+				}
+				DNSManager.LoadDNSOnlyRegexList()
+				resetCache = true
 			}
 		}
-
-		DNSTimeout, err := jsonparser.GetString(value, "DNSTimeout")
-		if err == nil {
-			iTimeout, errint := strconv.Atoi(DNSTimeout)
-			if errint == nil {
-				HasConfigChange = true
-				Config.DNSTimeout = iTimeout
-			}
+	}
+	if configChanged {
+		Config.Save()
+	}
+	if resetCache {
+		if err := DNSManager.ResetCache(Config.AdGuard); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
 		}
-
-		AdGuard, err := jsonparser.GetBoolean(value, "AdGuard")
-		if err == nil {
-			HasConfigChange = true
-			Config.AdGuard = AdGuard
-		}
-
-		AdGuardUrl, err := jsonparser.GetString(value, "AdGuardUrl")
-		if err == nil {
-			HasConfigChange = true
-			Config.AdGuardUrl = AdGuardUrl
-		}
-
-		AdGuardSecret, err := jsonparser.GetString(value, "AdGuardSecret")
-		if err == nil {
-			HasConfigChange = true
-			Config.AdGuardSecret = base64.StdEncoding.EncodeToString([]byte(AdGuardSecret))
-		}
-
-		DoHServer, err := jsonparser.GetString(value, "DoHServer")
-		if err == nil {
-			HasConfigChange = true
-			Config.DoHServer = DoHServer
-		}
-
-		DNSServers, err := jsonparser.GetString(value, "DNSServers")
-		if err == nil {
-			HasConfigChange = true
-			Config.DNSServerList = strings.ReplaceAll(DNSServers, "\n", ";")
-			DNSManager.InitDNSServers()
-		}
-
-		VPNInterface, err := jsonparser.GetString(value, "VPNInterface")
-		if err == nil {
-			HasConfigChange = true
-			Config.VPNInterface = VPNInterface
-		}
-
-		DNSRegexList, err := jsonparser.GetString(value, "DNSRegexList")
-		if err == nil {
-			err := os.WriteFile(fmt.Sprintf("%sservices.txt", Config.WorkDir), []byte(fmt.Sprintf("%s\n", DNSRegexList)), 0644)
-			if err != nil {
-				fmt.Println("Fail save DNS Regex List with error:", err.Error())
-				w.Write([]byte(err.Error()))
-				return
-			}
-			DNSManager.LoadDNSRegexList()
-
-			DNSManager.ResetCache(Config.AdGuard)
-		}
-
-		Debug, err := jsonparser.GetBoolean(value, "Debug")
-		if err == nil {
-			HasConfigChange = true
-			Config.Debug = Debug
-		}
-
-		if HasConfigChange {
-			Config.Save()
-		}
-	})
-
-	w.Write([]byte("OK"))
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	_, _ = w.Write([]byte("OK"))
 }
 
 func HTTPHandler(w http.ResponseWriter, r *http.Request) {
@@ -187,13 +248,14 @@ func HTTPHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var data SData
-	for _, DNSServer := range DNSManager.DNSServers {
+	for _, DNSServer := range DNSManager.ServerSnapshot() {
 		data.DNSServers = fmt.Sprintf("%s\n%s", data.DNSServers, DNSServer)
 	}
 
 	data.Port = strconv.Itoa(Config.Port)
 	data.DNSHTTPServer = Config.DoHServer
 	data.DNSRegexList = GetServiceList()
+	data.DNSOnlyRegexList = GetDNSOnlyList()
 	data.DNSTimeout = strconv.Itoa(Config.DNSTimeout)
 	data.DNSCacheRefresh = strconv.Itoa(Config.DNSCacheRefresh)
 	data.AdGuard = Config.AdGuard
@@ -217,5 +279,13 @@ func GetServiceList() string {
 		return ""
 	}
 
+	return string(content)
+}
+
+func GetDNSOnlyList() string {
+	content, err := os.ReadFile(Config.WorkDir + "doh-only.txt")
+	if err != nil {
+		return ""
+	}
 	return string(content)
 }
