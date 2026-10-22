@@ -273,6 +273,21 @@ func (DNSManager *SDNSManager) Handler(
 				err.Error(),
 			)
 		}
+
+		// Домены из маршрутизации и DoH-only никогда не должны
+		// переключаться на обычные DNS-серверы при отказе DoH.
+		// Если все основные DoH не ответили, возвращаем SERVFAIL.
+		DNSFailure := new(dns.Msg)
+		DNSFailure.SetRcode(&DNSRequest, dns.RcodeServerFailure)
+		buffer, packErr := DNSFailure.Pack()
+		if packErr != nil {
+			fmt.Println("Failed pack DoH SERVFAIL response:", packErr)
+			return
+		}
+		if _, writeErr := DNSManager.UDPSock.WriteTo(buffer, addr); writeErr != nil {
+			fmt.Println("Failed send DoH SERVFAIL response:", writeErr)
+		}
+		return
 	}
 
 	// Обычный список DNS-серверов.
