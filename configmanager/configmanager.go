@@ -38,12 +38,17 @@ type SConfig struct {
 	EnableCache bool
 
 	Debug bool
+
+	AutoUpdate   bool   `ini:"AutoUpdate"`
+	UpdateServer string `ini:"UpdateServer"`
 }
 
 var Config SConfig
 
 func (config *SConfig) Init(path string) {
 	config.WorkDir = path
+	config.AutoUpdate = true
+	config.UpdateServer = "https://dnsrouting.gm-world.ru/packages/dnsrouting/updates.php"
 	conf, err := ini.Load(fmt.Sprintf("%ssettings.ini", config.WorkDir))
 	if err != nil {
 		fmt.Printf("Fail load %ssettings.ini, err: %s\n", config.WorkDir, err.Error())
@@ -73,6 +78,8 @@ func (config *SConfig) Save() {
 	config.SetConfKey("VPNInterface", config.VPNInterface)
 	config.SetConfKey("EnableCache", strconv.FormatBool(config.EnableCache))
 	config.SetConfKey("Debug", strconv.FormatBool(config.Debug))
+	config.SetConfKey("AutoUpdate", strconv.FormatBool(config.AutoUpdate))
+	config.SetConfKey("UpdateServer", config.UpdateServer)
 
 	err := config.conf.SaveTo(fmt.Sprintf("%ssettings.ini", config.WorkDir))
 	if err != nil {

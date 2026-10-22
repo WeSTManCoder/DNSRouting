@@ -3,6 +3,7 @@ package web
 import (
 	. "dnsrouting/configmanager"
 	. "dnsrouting/dnsmanager"
+	"dnsrouting/updater"
 	. "dnsrouting/version"
 	"embed"
 	"encoding/base64"
@@ -32,6 +33,8 @@ type SData struct {
 	VPNInterface     string
 	Version          string
 	Debug            bool
+	AutoUpdate       bool
+	UpdateServer     string
 }
 
 //go:embed favicon.ico
@@ -50,6 +53,8 @@ func Start() {
 	http.HandleFunc("/", HTTPHandler)
 	http.HandleFunc("/favicon.ico", HTTPFaviconHandler)
 	http.HandleFunc("/Save", HTTPSaveHandler)
+	http.HandleFunc("/api/updates/check", HTTPUpdateCheck)
+	http.HandleFunc("/api/updates/install", HTTPUpdateInstall)
 
 	err := http.ListenAndServe(":4000", nil)
 	if err != nil {
@@ -109,6 +114,12 @@ func HTTPSaveHandler(w http.ResponseWriter, r *http.Request) {
 						http.Error(w, "Invalid server: "+server, 400)
 						return
 					}
+				}
+			case "UpdateServer":
+				var v string
+				if err := json.Unmarshal(raw, &v); err != nil || updater.ValidateEndpoint(v) != nil {
+					http.Error(w, "Invalid update server URL (HTTPS required)", 400)
+					return
 				}
 			case "DNSRegexList", "DNSOnlyRegexList":
 				var v string
@@ -188,6 +199,18 @@ func HTTPSaveHandler(w http.ResponseWriter, r *http.Request) {
 					Config.VPNInterface = v
 					configChanged = true
 				}
+			case "UpdateServer":
+				var v string
+				if json.Unmarshal(raw, &v) == nil {
+					Config.UpdateServer = strings.TrimSpace(v)
+					configChanged = true
+				}
+			case "AutoUpdate":
+				var v bool
+				if json.Unmarshal(raw, &v) == nil {
+					Config.AutoUpdate = v
+					configChanged = true
+				}
 			case "Debug":
 				var v bool
 				if json.Unmarshal(raw, &v) == nil {
@@ -265,6 +288,8 @@ func HTTPHandler(w http.ResponseWriter, r *http.Request) {
 	data.VPNInterface = Config.VPNInterface
 	data.Version = GetVersion()
 	data.Debug = Config.Debug
+	data.AutoUpdate = Config.AutoUpdate
+	data.UpdateServer = Config.UpdateServer
 
 	err = template.Execute(w, data)
 	if err != nil {
@@ -288,4 +313,44 @@ func GetDNSOnlyList() string {
 		return ""
 	}
 	return string(content)
+}
+
+// Update endpoints never accept arbitrary URLs, paths, or executables from the browser.
+func HTTPUpdateCheck(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", 405)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	result, err := updater.Check(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(result)
+}
+
+func HTTPUpdateInstall(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", 405)
+		return
+	}
+	if r.Header.Get("Origin") != "" {
+		origin := r.Header.Get("Origin")
+		expected := "http://" + r.Host
+		if r.TLS != nil {
+			expected = "https://" + r.Host
+		}
+		if origin != expected {
+			http.Error(w, "Invalid origin", 403)
+			return
+		}
+	}
+	result, err := updater.Install(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(result)
 }

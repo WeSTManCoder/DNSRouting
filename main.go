@@ -4,6 +4,7 @@ import (
 	. "dnsrouting/configmanager"
 	. "dnsrouting/dnsmanager"
 	. "dnsrouting/routemanager"
+	"dnsrouting/updater"
 	. "dnsrouting/version"
 	"dnsrouting/web"
 	"flag"
@@ -23,6 +24,7 @@ func main() {
 	DNSManager.Init()
 	DNSManager.SetPort(Config.Port)
 	DNSManager.Start()
+	updater.Start()
 
 	web.Start()
 }
