@@ -258,54 +258,58 @@ func (DNSManager *SDNSManager) Handler(
 			&DNSRequest,
 		)
 
-		if err == nil && len(DNSAnswer.Answer) > 0 {
-			if Config.Debug {
-				fmt.Printf(
-					"[DEBUG] YES answers from %s (%d), domain: %s\n",
-					Config.DoHServer,
-					len(DNSAnswer.Answer),
-					domain,
-				)
-			}
-
+		if err == nil {
+			// NXDOMAIN и NOERROR/NODATA — корректные DNS-ответы.
+			// Передаем их клиенту без подмены на SERVFAIL.
 			DNSAnswer.Question = append(
 				[]dns.Question(nil),
 				DNSRequest.Question...,
 			)
 			DNSAnswer.Response = true
 
-			if Config.EnableCache {
+			// Кешируем только положительные ответы.
+			// Отрицательные ответы не добавляем в IP-маршруты.
+			positive := DNSAnswer.Rcode == dns.RcodeSuccess &&
+				len(DNSAnswer.Answer) > 0
+
+			if Config.Debug {
+				fmt.Printf(
+					"[DEBUG] DoH response: domain=%s, rcode=%s, answers=%d\n",
+					domain,
+					dns.RcodeToString[DNSAnswer.Rcode],
+					len(DNSAnswer.Answer),
+				)
+			}
+
+			if positive {
+				if Config.EnableCache {
+					if routeDomain {
+						DNSManager.AddCache(DNSAnswer)
+					} else if dohOnlyDomain {
+						DNSManager.AddDoHOnlyCache(DNSAnswer)
+					}
+				}
 				if routeDomain {
-					DNSManager.AddCache(DNSAnswer)
-				} else if dohOnlyDomain {
-					DNSManager.AddDoHOnlyCache(DNSAnswer)
+					DNSManager.AddToRoute(&DNSAnswer)
 				}
 			}
 
-			if routeDomain {
-				DNSManager.AddToRoute(&DNSAnswer)
-			}
-
 			DNSAnswer.Id = DNSRequest.Id
-
-			answer, err := DNSAnswer.Pack()
-			if err != nil {
-				fmt.Println(
-					"Failed pack DoH DNS response:",
-					err,
-				)
+			answer, packErr := DNSAnswer.Pack()
+			if packErr != nil {
+				fmt.Println("Failed pack DoH DNS response:", packErr)
 				return
 			}
-
-			DNSManager.UDPSock.WriteTo(answer, addr)
+			if _, writeErr := DNSManager.UDPSock.WriteTo(answer, addr); writeErr != nil {
+				fmt.Println("Failed send DoH DNS response:", writeErr)
+			}
 			return
+		}
 
-		} else if err != nil && Config.Debug {
+		if Config.Debug {
 			fmt.Printf(
-				"[DEBUG] No answers from %s, domain: %s, error: %s\n",
-				Config.DoHServer,
-				domain,
-				err.Error(),
+				"[DEBUG] DoH request failed: domain=%s, error=%v\n",
+				domain, err,
 			)
 		}
 
@@ -340,89 +344,94 @@ func (DNSManager *SDNSManager) Handler(
 		return
 	}
 
-	// Обычный список DNS-серверов.
-	// Порядок перебора сохраняется.
-	var DNSAnswer dns.Msg
-
+	// Обычные DNS-серверы: перебираем, пока не получим записи Answer.
+	// NXDOMAIN/NODATA запоминаем и возвращаем только если все серверы
+	// не дали положительного ответа.
+	var lastNegative *dns.Msg
 	for _, server := range DNSManager.ServerSnapshot() {
-		protocol, address, err := DNSManager.ParseDNSServer(
-			server,
-		)
-
-		if err != nil {
+		protocol, address, parseErr := DNSManager.ParseDNSServer(server)
+		if parseErr != nil {
 			if Config.Debug {
-				fmt.Printf(
-					"[DEBUG] Invalid DNS server %s: %s\n",
-					server,
-					err.Error(),
-				)
+				fmt.Printf("[DEBUG] Invalid DNS server %s: %v\n", server, parseErr)
 			}
 			continue
 		}
 
+		var DNSAnswer dns.Msg
 		switch protocol {
 		case "https":
-			answer, err := DNSManager.GetDNSFromDoHServer(
-				&DNSRequest,
-				address,
-			)
-
-			if err != nil {
+			answer, getErr := DNSManager.GetDNSFromDoHServer(&DNSRequest, address)
+			if getErr != nil {
 				if Config.Debug {
-					fmt.Printf(
-						"[DEBUG] Failed DoH %s, domain: %s, error: %s\n",
-						server,
-						domain,
-						err.Error(),
-					)
+					fmt.Printf("[DEBUG] Failed DoH %s, domain=%s: %v\n", server, domain, getErr)
 				}
 				continue
 			}
-
 			DNSAnswer = answer
-
 		case "udp":
-			DNSAnswer = DNSManager.GetDNSFromDNSServer(
-				&DNSRequest,
-				address,
-			)
+			DNSAnswer = DNSManager.GetDNSFromDNSServer(&DNSRequest, address)
+		default:
+			continue
 		}
 
-		if len(DNSAnswer.Answer) > 0 {
+		if !DNSAnswer.Response {
+			continue
+		}
+		if DNSAnswer.Rcode != dns.RcodeSuccess && DNSAnswer.Rcode != dns.RcodeNameError {
 			if Config.Debug {
-				fmt.Printf(
-					"[DEBUG] YES answers from %s (%d), domain: %s\n",
-					server,
-					len(DNSAnswer.Answer),
-					domain,
-				)
+				fmt.Printf("[DEBUG] DNS server %s failed, domain=%s, rcode=%d\n", server, domain, DNSAnswer.Rcode)
 			}
-			break
-		} else if Config.Debug {
-			fmt.Printf(
-				"[DEBUG] No answers from %s, domain: %s\n",
-				server,
-				domain,
-			)
+			continue
+		}
+
+		if Config.Debug {
+			fmt.Printf("[DEBUG] DNS response from %s: domain=%s, rcode=%d, answers=%d\n", server, domain, DNSAnswer.Rcode, len(DNSAnswer.Answer))
+		}
+		if DNSAnswer.Rcode == dns.RcodeSuccess && len(DNSAnswer.Answer) > 0 {
+			DNSAnswer.Id = DNSRequest.Id
+			packet, packErr := DNSAnswer.Pack()
+			if packErr != nil {
+				fmt.Println("Failed pack DNS response:", packErr)
+				return
+			}
+			if _, writeErr := DNSManager.UDPSock.WriteTo(packet, addr); writeErr != nil {
+				fmt.Println("Failed send DNS response:", writeErr)
+			}
+			return
+		}
+
+		// Сохраняем первый отрицательный ответ, а перебор продолжаем.
+		// Так не теряем NXDOMAIN/NODATA, если следующие серверы недоступны.
+		if lastNegative == nil {
+			lastNegative = DNSAnswer.Copy()
 		}
 	}
 
-	answer, err := DNSAnswer.Pack()
-	if err != nil {
-		fmt.Println(
-			"Fail pack DNSAnswer with error:",
-			err.Error(),
-		)
+	if lastNegative != nil {
+		lastNegative.Id = DNSRequest.Id
+		packet, packErr := lastNegative.Pack()
+		if packErr != nil {
+			fmt.Println("Failed pack negative DNS response:", packErr)
+			return
+		}
+		if _, writeErr := DNSManager.UDPSock.WriteTo(packet, addr); writeErr != nil {
+			fmt.Println("Failed send negative DNS response:", writeErr)
+		}
 		return
 	}
 
-	_, err = DNSManager.UDPSock.WriteTo(answer, addr)
-	if err != nil {
-		fmt.Println(
-			"Fail to send DNS response to client:",
-			err.Error(),
-		)
+	// Не получили ни положительного, ни корректного отрицательного ответа.
+	failure := new(dns.Msg)
+	failure.SetRcode(&DNSRequest, dns.RcodeServerFailure)
+	packet, packErr := failure.Pack()
+	if packErr != nil {
+		fmt.Println("Failed pack DNS SERVFAIL response:", packErr)
+		return
 	}
+	if _, writeErr := DNSManager.UDPSock.WriteTo(packet, addr); writeErr != nil {
+		fmt.Println("Failed send DNS SERVFAIL response:", writeErr)
+	}
+
 }
 
 // ParseDNSServer поддерживает:
@@ -1116,50 +1125,48 @@ func (DNSManager *SDNSManager) GetDNSFromHTTPMessage(
 ) (dns.Msg, error) {
 	servers := splitServers(Config.DoHServer)
 	var lastErr error
+	var lastNegative *dns.Msg
 
 	for _, server := range servers {
-		protocol, address, err := DNSManager.ParseDNSServer(
-			server,
-		)
-
+		protocol, address, err := DNSManager.ParseDNSServer(server)
 		if err != nil || protocol != "https" {
-			lastErr = fmt.Errorf(
-				"primary DoH must use https: %s",
-				server,
-			)
+			lastErr = fmt.Errorf("primary DoH must use https: %s", server)
 			continue
 		}
 
-		response, err := DNSManager.GetDNSFromDoHServer(
-			request,
-			address,
-		)
+		response, err := DNSManager.GetDNSFromDoHServer(request, address)
 		if err != nil {
 			lastErr = err
 			if Config.Debug {
-				fmt.Printf(
-					"[DEBUG] Primary DoH %s failed: %v\n",
-					address,
-					err,
-				)
+				fmt.Printf("[DEBUG] Primary DoH %s failed: %v\n", address, err)
 			}
 			continue
 		}
 
-		if len(response.Answer) > 0 {
+		// Ответ с записями — успешный; прекращаем перебор.
+		if response.Rcode == dns.RcodeSuccess && len(response.Answer) > 0 {
 			return response, nil
 		}
 
-		lastErr = fmt.Errorf(
-			"primary DoH %s returned no answers",
-			address,
-		)
+		// NXDOMAIN и NOERROR без Answer — не сетевые ошибки.
+		// Но перебираем остальные DoH на случай, если они найдут записи.
+		if response.Rcode == dns.RcodeNameError || response.Rcode == dns.RcodeSuccess {
+			if lastNegative == nil {
+				lastNegative = response.Copy()
+			}
+			continue
+		}
+
+		lastErr = fmt.Errorf("primary DoH %s returned rcode %s", address, dns.RcodeToString[response.Rcode])
 	}
 
+	// Все DoH проверены: возвращаем отрицательный ответ, если он был.
+	if lastNegative != nil {
+		return *lastNegative, nil
+	}
 	if lastErr == nil {
 		lastErr = fmt.Errorf("no primary DoH configured")
 	}
-
 	return dns.Msg{}, lastErr
 }
 
