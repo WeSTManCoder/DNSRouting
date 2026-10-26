@@ -910,9 +910,9 @@ func (DNSManager *SDNSManager) UpdateDoHOnlyCache() {
 			continue
 		}
 
-		answer, err := DNSManager.GetDNSFromHTTPMessage(
-			&record,
-		)
+		// Обновляем DNS-запись новым запросом, а не сохранённым ответом.
+		refreshRequest := buildRefreshDNSRequest(&record)
+		answer, err := DNSManager.GetDNSFromHTTPMessage(refreshRequest)
 		if err != nil || len(answer.Answer) == 0 {
 			if err != nil {
 				fmt.Printf(
@@ -1043,9 +1043,10 @@ func (DNSManager *SDNSManager) UpdateCacheLoop() {
 				domain,
 			)
 
-			DNSAnswer, err := DNSManager.GetDNSFromHTTPMessage(
-				&DNSRecord,
-			)
+			// Нельзя передавать DNSRecord напрямую: это старый DNS-ответ
+			// с Answer/Authority/Extra, а не запрос.
+			refreshRequest := buildRefreshDNSRequest(&DNSRecord)
+			DNSAnswer, err := DNSManager.GetDNSFromHTTPMessage(refreshRequest)
 			if err != nil {
 				fmt.Printf(
 					"Failed update %s with error: %s\n",
@@ -1107,6 +1108,17 @@ func (DNSManager *SDNSManager) UpdateCacheLoop() {
 
 		fmt.Println("Cache updated")
 	}
+}
+
+// buildRefreshDNSRequest формирует минимальный DNS-запрос из кешированного
+// ответа. Старые записи Answer/Authority/Extra и флаг Response не переносим.
+func buildRefreshDNSRequest(cached *dns.Msg) *dns.Msg {
+	question := cached.Question[0]
+	request := new(dns.Msg)
+	request.SetQuestion(question.Name, question.Qtype)
+	request.Question[0].Qclass = question.Qclass
+	request.Id = dns.Id()
+	return request
 }
 
 // GetDNSFromHTTP оставлен для совместимости с прежними вызовами.
